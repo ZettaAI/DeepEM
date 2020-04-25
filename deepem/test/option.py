@@ -102,10 +102,10 @@ class Options(object):
 
         self.initialized = True
 
-    def parse(self):
+    def parse(self, custom_args=None):
         if not self.initialized:
             self.initialize()
-        opt = self.parser.parse_args()
+        opt = self.parser.parse_args(custom_args)
 
         # Directories
         if opt.exp_name.split('/')[0] == 'experiments':

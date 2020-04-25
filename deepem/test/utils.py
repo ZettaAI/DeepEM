@@ -66,7 +66,7 @@ def make_forward_scanner(opt, data_name=None):
     # ForwardScanner
     dataset = Dataset(spec=opt.in_spec)
     dataset.add_data('input', img)
-    return ForwardScanner(dataset, opt.scan_spec, **opt.scan_params)
+    return ForwardScanner(dataset, opt.scan_spec) #, **opt.scan_params)
 
 
 def save_output(output, opt, data_name=None, aug_out=None):

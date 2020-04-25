@@ -16,7 +16,7 @@ class Forward(object):
         self.in_spec = dict(opt.in_spec)
         self.out_spec = dict(opt.out_spec)
         self.scan_spec = dict(opt.scan_spec)
-        self.scan_params = dict(opt.scan_params)
+        self.scan_params = dict()  # dict(opt.scan_params)
         self.test_aug = opt.test_aug
         self.variance = opt.variance
         self.precomputed = (opt.blend == 'precomputed')
@@ -124,4 +124,4 @@ class Forward(object):
         return ret
 
     def make_forward_scanner(self, dataset):
-        return ForwardScanner(dataset, self.scan_spec, **self.scan_params)
+        return ForwardScanner(dataset, self.scan_spec) #, **self.scan_params)

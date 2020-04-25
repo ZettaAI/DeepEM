@@ -75,6 +75,8 @@ class Model(nn.Module):
         if self.pretrain:
             model_dict = self.model.state_dict()
             state_dict = {k:v for k, v in state_dict.items() if k in model_dict}
+            # state_dict.update({f"model.{k}":v for k, v in state_dict.items() if k[0:6] != "model."})
+            # state_dict = {k:v for k, v in state_dict.items() if k in model_dict}
             model_dict.update(state_dict)
             self.model.load_state_dict(model_dict)
         else:
