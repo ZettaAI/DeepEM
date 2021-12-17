@@ -5,3 +5,6 @@ task-queue
 tensorflow
 tensorboard
 tensorboardX
+git+git://github.com/seung-lab/pytorch-emvision@master
+git+git://github.com/seung-lab/DataProvider3@master
+# git+git://github.com/seung-lab/Augmentor@master
