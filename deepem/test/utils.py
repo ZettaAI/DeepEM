@@ -41,6 +41,7 @@ def make_forward_scanner(opt, data_name=None):
         try:
             from deepem.test import cv_utils
             img = cv_utils.cutout(opt, opt.gs_input, dtype='uint8')
+            print(f'gs_input shape: {img.shape}')
 
             # Optional input histogram normalization 
             if opt.gs_input_norm:
