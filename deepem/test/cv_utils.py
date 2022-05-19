@@ -80,7 +80,12 @@ def ingest(data, opt, tag=None):
     in_bbox = in_vol.bbox_to_mip(coord_bbox, mip=opt.coord_mip, to_mip=opt.in_mip)
 
     # Patch offset correction (when output patch is smaller than input patch)
-    patch_offset = (np.array(opt.inputsz) - np.array(opt.outputsz)) // 2
+    patch_offset = (0,0,0)
+    if (opt.tilt_series > 0):
+        if (opt.tilt_series_crop is not None):
+            patch_offset = (np.array(opt.outputsz) - np.array(opt.tilt_series_crop)) // 2
+    else:
+        patch_offset = (np.array(opt.inputsz) - np.array(opt.outputsz)) // 2
     patch_offset = Vec(*np.flip(patch_offset, 0))
     in_bbox.minpt += patch_offset
     # in_bbox.stop -= 2*patch_offset # using the data to define shape

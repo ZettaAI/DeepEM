@@ -39,6 +39,12 @@ class Options(object):
         self.parser.add_argument('--group', type=int, default=0)
         self.parser.add_argument('--act', default='ReLU')
 
+        # Tilt-series electron tomography
+        self.parser.add_argument('--tilt_series', type=int, default=0)
+        self.parser.add_argument('--tilt_series_in', type=int, default=12)
+        self.parser.add_argument('--tilt_series_out', type=int, default=4)
+        self.parser.add_argument('--tilt_series_crop', type=vec3, default=None)
+        
         # Multiclass detection
         self.parser.add_argument('--aff',  action='store_true')
         self.parser.add_argument('--long', type=int, default=0)
@@ -94,6 +100,7 @@ class Options(object):
         self.parser.add_argument('--out_tag', default='')
         self.parser.add_argument('--overlap', type=vec3f, default=(0.5,0.5,0.5))
         self.parser.add_argument('--stride', type=vec3, default=None)
+        self.parser.add_argument('--scale', type=vec3, default=(1,1,1))
         self.parser.add_argument('--mirror', type=vec3, default=None)
         self.parser.add_argument('--crop_border', type=vec3, default=None)
         self.parser.add_argument('--crop_center', type=vec3, default=None)
@@ -132,17 +139,26 @@ class Options(object):
         opt.fov = tuple(opt.fov)
         opt.inputsz = opt.fov if opt.inputsz is None else opt.inputsz
         opt.outputsz = opt.fov if opt.outputsz is None else opt.outputsz
-        opt.in_spec = dict(input=(1,) + opt.inputsz)
+        in_channels = opt.tilt_series if opt.tilt_series > 0 else 1
+        opt.in_spec = dict(input=(in_channels,) + opt.inputsz)
         opt.out_spec = dict()
 
-        # Crop output
-        diff = np.array(opt.fov) - np.array(opt.outputsz)
-        assert all(diff >= 0)
-        if any(diff > 0):
-            # opt.cropsz = opt.outputsz
-            opt.cropsz = [o/float(f) for f,o in zip(opt.fov,opt.outputsz)]
+        # Output cropping
+        opt.cropsz = None
+        if opt.tilt_series > 0:
+            if opt.tilt_series_crop is not None:
+                opt.cropsz = [o/float(f) for f,o in zip(opt.outputsz, opt.tilt_series_crop)]
         else:
-            opt.cropsz = None
+            diff = np.array(opt.fov) - np.array(opt.outputsz)
+            assert all(diff >= 0)
+            if any(diff > 0):
+                opt.cropsz = [o/float(f) for f,o in zip(opt.fov, opt.outputsz)]
+
+        # Tilt-series super-resolution
+        if opt.tilt_series > 0:
+            scale = opt.tilt_series_in // opt.tilt_series_out
+            assert opt.inputsz[-3] * scale == opt.outputsz[-3]
+            opt.scale = (scale, 1, 1)
 
         if opt.aff:
             opt.out_spec['affinity'] = (3,) + opt.outputsz
@@ -209,7 +225,7 @@ class Options(object):
         else:            
             # infer overlap from stride
             opt.overlap = tuple(int(f-s) for f,s in zip(opt.outputsz, opt.stride))
-        opt.scan_params = dict(stride=opt.stride, blend=opt.blend)
+        opt.scan_params = dict(stride=opt.stride, blend=opt.blend, scale=opt.scale)
 
         # Output tagging
         if opt.tags is not None:
