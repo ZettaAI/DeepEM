@@ -143,22 +143,23 @@ class Options(object):
         opt.in_spec = dict(input=(in_channels,) + opt.inputsz)
         opt.out_spec = dict()
 
-        # Output cropping
+        # Tilt-series super-resolution
         opt.cropsz = None
         if opt.tilt_series > 0:
+            # Scale factor
+            scale = opt.tilt_series_in // opt.tilt_series_out
+            opt.scale = (scale, 1, 1)
+            opt.outputsz = tuple(np.array(opt.fov) * np.array(opt.scale))
             if opt.tilt_series_crop is not None:
                 opt.cropsz = [o/float(f) for f,o in zip(opt.outputsz, opt.tilt_series_crop)]
+                # Update output size
+                opt.outputsz = tuple(opt.tilt_series_crop)
         else:
+            # Output cropping
             diff = np.array(opt.fov) - np.array(opt.outputsz)
             assert all(diff >= 0)
             if any(diff > 0):
                 opt.cropsz = [o/float(f) for f,o in zip(opt.fov, opt.outputsz)]
-
-        # Tilt-series super-resolution
-        if opt.tilt_series > 0:
-            scale = opt.tilt_series_in // opt.tilt_series_out
-            assert opt.inputsz[-3] * scale == opt.outputsz[-3]
-            opt.scale = (scale, 1, 1)
 
         if opt.aff:
             opt.out_spec['affinity'] = (3,) + opt.outputsz
@@ -224,7 +225,8 @@ class Options(object):
             opt.stride = tuple(int(f-o) for f,o in zip(opt.outputsz, opt.overlap))
         else:            
             # infer overlap from stride
-            opt.overlap = tuple(int(f-s) for f,s in zip(opt.outputsz, opt.stride))
+            stride = np.array(opt.stride) * np.array(opt.scale)
+            opt.overlap = tuple(int(f-s) for f,s in zip(opt.outputsz, stride))
         opt.scan_params = dict(stride=opt.stride, blend=opt.blend, scale=opt.scale)
 
         # Output tagging
