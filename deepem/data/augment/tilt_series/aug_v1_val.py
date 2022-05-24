@@ -56,8 +56,8 @@ def get_augmentation(is_train, tilt_series=(0,0,0), tilt_series_crop=None,
 
     # Misalingments
     trans = Compose([Misalign((0, 5), margin=1),
-                        Misalign((0,15), margin=1),
-                        Misalign((0,25), margin=1)])
+                     Misalign((0,15), margin=1),
+                     Misalign((0,25), margin=1)])
 
     # Out-of-alignments
     slip = Compose([SlipMisalign((0, 5), interp=True, margin=1),
