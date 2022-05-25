@@ -42,6 +42,6 @@ def load_dataset(dpath, **kwargs):
     dset['loc'] = True
 
     # Mask
-    dset['msk'] = np.ones(dset['seg'], dtype=np.uint8)
+    dset['msk'] = np.ones(dset['seg'].shape, dtype=np.uint8)
 
     return dset
