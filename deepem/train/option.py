@@ -182,9 +182,12 @@ class Options(object):
         # Output cropping
         opt.cropsz = None
         if opt.tilt_series > 0:
-            scale = opt.tilt_series_in // opt.tilt_series_out
-            opt.scale = (scale, 1, 1)
-            opt.outputsz = tuple(np.array(opt.fov) * np.array(opt.scale))
+            # Input size
+            factor = (opt.tilt_series_in, 1, 1)
+            opt.inputsz = tuple(np.array(opt.fov) // np.array(factor))
+            # Output size
+            scale = (opt.tilt_series_in // opt.tilt_series_out, 1, 1)
+            opt.outputsz = tuple(np.array(opt.inputsz) * np.array(scale))
             if opt.tilt_series_crop:
                 opt.cropsz = [o/float(f) for f,o in zip(opt.outputsz, opt.tilt_series_crop)]
                 # Update output size
