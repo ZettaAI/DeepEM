@@ -148,14 +148,14 @@ class Options(object):
         opt.out_spec = dict()
 
         # Tilt-series super-resolution
-        opt.cropsz = None
+        opt.crop = None
         if opt.tilt_series > 0:
             # Scale factor
             scale = opt.tilt_series_in // opt.tilt_series_out
             opt.scale = (scale, 1, 1)
             opt.outputsz = tuple(np.array(opt.fov) * np.array(opt.scale))
             if opt.tilt_series_crop is not None:
-                opt.cropsz = [o/float(f) for f,o in zip(opt.outputsz, opt.tilt_series_crop)]
+                opt.crop = [o/float(f) for f,o in zip(opt.outputsz, opt.tilt_series_crop)]
                 # Update output size
                 opt.outputsz = tuple(opt.tilt_series_crop)
         else:
@@ -163,7 +163,7 @@ class Options(object):
             diff = np.array(opt.fov) - np.array(opt.outputsz)
             assert all(diff >= 0)
             if any(diff > 0):
-                opt.cropsz = [o/float(f) for f,o in zip(opt.fov, opt.outputsz)]
+                opt.crop = [o/float(f) for f,o in zip(opt.fov, opt.outputsz)]
 
         if opt.aff:
             opt.out_spec['affinity'] = (3,) + opt.outputsz
