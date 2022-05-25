@@ -117,6 +117,7 @@ class Options(object):
         self.parser.add_argument('--blv_num_channels', type=int, default=2)
         self.parser.add_argument('--glia', type=float, default=0)  # Glia
         self.parser.add_argument('--glia_mask', action='store_true')
+        self.parser.add_argument('--img', type=float, default=0)  # Image
 
         # Test training
         self.parser.add_argument('--test', action='store_true')
@@ -219,7 +220,8 @@ class Options(object):
             'mye':  ('myelin', 1),
             'fld':  ('fold', 1),
             'blv':  ('blood_vessel', opt.blv_num_channels),
-            'glia':  ('glia', 1),
+            'glia': ('glia', 1),
+            'img':  ('image', 1),
         }
 
         # Test training

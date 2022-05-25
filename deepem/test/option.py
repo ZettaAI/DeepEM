@@ -189,6 +189,8 @@ class Options(object):
             opt.out_spec['dendrite'] = (1,) + opt.outputsz
             opt.out_spec['glia'] = (1,) + opt.outputsz
             opt.out_spec['bvessel'] = (1,) + opt.outputsz
+        if opt.img:
+            opt.out_spec['image'] = (1,) + opt.outputsz
         assert(len(opt.out_spec) > 0)
 
         # Scan spec
@@ -217,6 +219,8 @@ class Options(object):
             opt.scan_spec['dendrite'] = (1,) + opt.outputsz
             opt.scan_spec['glia'] = (1,) + opt.outputsz
             opt.scan_spec['bvessel'] = (1,) + opt.outputsz
+        if opt.img:
+            opt.scan_spec['image'] = (1,) + opt.outputsz
 
         # Test-time augmentation
         if opt.test_aug16:
