@@ -37,7 +37,8 @@ def make_forward_scanner(opt, data_name=None):
     if opt.gs_input:
         try:
             from deepem.test import cv_utils
-            img = cv_utils.cutout(opt, opt.gs_input, dtype='uint8')
+            in_channels = opt.in_spec['input'][-4]
+            img = cv_utils.cutout(opt, opt.gs_input, dtype='uint8', channels=in_channels)
             print(f'gs_input shape: {img.shape}')
 
             # Optional input histogram normalization 
@@ -52,7 +53,7 @@ def make_forward_scanner(opt, data_name=None):
             # Optional input mask
             if opt.gs_input_mask:
                 try:
-                    msk = cv_utils.cutout(opt, opt.gs_input_mask, dtype='uint8')
+                    msk = cv_utils.cutout(opt, opt.gs_input_mask, dtype='uint8', channels=in_channels)
                     img[msk > 0] = 0
                 except:
                     raise
