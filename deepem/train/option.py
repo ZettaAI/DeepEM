@@ -180,7 +180,7 @@ class Options(object):
         opt.loss_weight = dict()
 
         # Output cropping
-        opt.cropsz = None
+        opt.crop = None
         if opt.tilt_series > 0:
             # Input size
             factor = (opt.tilt_series_in, 1, 1)
@@ -189,14 +189,14 @@ class Options(object):
             scale = (opt.tilt_series_in // opt.tilt_series_out, 1, 1)
             opt.outputsz = tuple(np.array(opt.inputsz) * np.array(scale))
             if opt.tilt_series_crop:
-                opt.cropsz = [o/float(f) for f,o in zip(opt.outputsz, opt.tilt_series_crop)]
+                opt.crop = [o/float(f) for f,o in zip(opt.outputsz, opt.tilt_series_crop)]
                 # Update output size
                 opt.outputsz = tuple(opt.tilt_series_crop)
         else:
             diff = np.array(opt.fov) - np.array(opt.outputsz)
             assert all(diff >= 0)
             if any(diff > 0):
-                opt.cropsz = [o/float(f) for f,o in zip(opt.fov, opt.outputsz)]
+                opt.crop = [o/float(f) for f,o in zip(opt.fov, opt.outputsz)]
 
         # Multiclass detection
         class_keys = list()

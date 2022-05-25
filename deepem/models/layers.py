@@ -32,14 +32,14 @@ class Scale(nn.Module):
 
 
 class Crop(nn.Module):
-    def __init__(self, cropsz):
+    def __init__(self, crop):
         super(Crop, self).__init__()
-        self.cropsz = tuple(cropsz)
+        self.crop = tuple(crop)
 
     def forward(self, x):
-        if self.cropsz is not None:
+        if self.crop is not None:
             for k, v in x.items():
-                cropsz = [int(v.shape[i]*self.cropsz[i]) for i in [-3,-2,-1]]
+                cropsz = [int(v.shape[i]*self.crop[i]) for i in [-3,-2,-1]]
                 x[k] = torch_utils.crop_center(v, cropsz)
         return x
 

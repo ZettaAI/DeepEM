@@ -28,7 +28,7 @@ def create_model(opt):
     scale = opt.tilt_series_in // opt.tilt_series_out
     return Model(core, opt.in_spec, opt.out_spec, 
                  opt.tilt_series, width[0], scale, 
-                 cropsz=opt.cropsz)
+                 cropsz=opt.crop)
 
 
 class InputBlock(nn.Sequential):
