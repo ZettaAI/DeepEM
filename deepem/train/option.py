@@ -183,17 +183,21 @@ class Options(object):
         opt.fov = tuple(opt.fov)
         opt.inputsz = opt.fov if opt.inputsz is None else tuple(opt.inputsz)
         opt.outputsz = opt.fov if opt.outputsz is None else tuple(opt.outputsz)
-        opt.in_spec = dict(input=(1,) + opt.inputsz)
+        in_channels = opt.tilt_series if opt.tilt_series > 0 else 1
+        opt.in_spec = dict(input=(in_channels,) + opt.inputsz)
         opt.out_spec = dict()
         opt.loss_weight = dict()
 
         # Output cropping
         opt.cropsz = None
         if opt.tilt_series > 0:
+            scale = opt.tilt_series_in // opt.tilt_series_out
+            opt.scale = (scale, 1, 1)
+            opt.outputsz = tuple(np.array(opt.fov) * np.array(opt.scale))
             if opt.tilt_series_crop:
-                fov = list(opt.fov)
-                fov[-3] = opt.fov[-3] // opt.tilt_series_out
-                opt.cropsz = [o/float(f) for f,o in zip(fov, opt.tilt_series_crop)]
+                opt.cropsz = [o/float(f) for f,o in zip(opt.outputsz, opt.tilt_series_crop)]
+                # Update output size
+                opt.outputsz = tuple(opt.tilt_series_crop)
         else:
             diff = np.array(opt.fov) - np.array(opt.outputsz)
             assert all(diff >= 0)
