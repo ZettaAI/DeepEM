@@ -173,18 +173,11 @@ class Options(object):
                     'interp','missing','blur','box','mip','lost','random']
         opt.aug_params = {k: args[k] for k in aug_keys}
 
-        # Tilt-series electron tomography
-        opt.aug_params['tilt_series'] = (opt.tilt_series,
-                                         opt.tilt_series_in,
-                                         opt.tilt_series_out)
-        opt.aug_params['tilt_series_crop'] = opt.tilt_series_crop
-
         # Model
         opt.fov = tuple(opt.fov)
         opt.inputsz = opt.fov if opt.inputsz is None else tuple(opt.inputsz)
         opt.outputsz = opt.fov if opt.outputsz is None else tuple(opt.outputsz)
-        in_channels = opt.tilt_series if opt.tilt_series > 0 else 1
-        opt.in_spec = dict(input=(in_channels,) + opt.inputsz)
+        opt.in_spec = dict(input=(1,) + opt.inputsz)
         opt.out_spec = dict()
         opt.loss_weight = dict()
 
@@ -194,6 +187,7 @@ class Options(object):
             # Input size
             factor = (opt.tilt_series_in, 1, 1)
             opt.inputsz = tuple(np.array(opt.fov) // np.array(factor))
+            opt.in_spec = dict(input=(opt.tilt_series,) + opt.inputsz)
             # Output size
             scale = (opt.tilt_series_in // opt.tilt_series_out, 1, 1)
             opt.outputsz = tuple(np.array(opt.inputsz) * np.array(scale))
@@ -206,6 +200,12 @@ class Options(object):
             assert all(diff >= 0)
             if any(diff > 0):
                 opt.crop = [o/float(f) for f,o in zip(opt.fov, opt.outputsz)]
+
+        # Tilt-series electron tomography
+        opt.aug_params['tilt_series'] = (opt.tilt_series,
+                                         opt.tilt_series_in,
+                                         opt.tilt_series_out)
+        opt.aug_params['tilt_series_crop'] = opt.crop
 
         # Multiclass detection
         class_keys = list()

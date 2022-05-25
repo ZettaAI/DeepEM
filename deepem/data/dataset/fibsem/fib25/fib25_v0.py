@@ -4,6 +4,7 @@ import os
 import dataprovider3.emio as emio
 
 
+fib25_dir = 'FIB-25'
 data_keys = ['validation_sample']
 merger_ids = [2148]
 
@@ -12,7 +13,8 @@ def load_data(data_dir, data_ids=None, **kwargs):
     if data_ids is None:
         return {}
     
-    data_dir = os.path.expanduser(data_dir)
+    base_dir = os.path.expanduser(base_dir)
+    data_dir = os.path.join(base_dir, fib25_dir)
 
     data = {}
     for data_id in data_ids:
