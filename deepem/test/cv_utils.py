@@ -32,7 +32,7 @@ def get_coord_bbox(cvol, opt):
                 opt.end = tuple(x + y for x, y in zip(opt.begin, opt.size))
     return Bbox(opt.begin, opt.end)
 
-def cutout(opt, gs_path, dtype='uint8'):
+def cutout(opt, gs_path, dtype='uint8', channels=0):
     if '{}' in gs_path:
         gs_path = gs_path.format(*opt.keywords)
     print(gs_path)
@@ -52,8 +52,12 @@ def cutout(opt, gs_path, dtype='uint8'):
 
     # Transpose & squeeze
     cutout = cutout.transpose([3,2,1,0])
-    cutout = np.squeeze(cutout).astype(dtype)
-    return cutout
+    
+    # Slice channel
+    if channels > 0:
+        cutout = cutout[:channels, ...]
+
+    return np.squeeze(cutout).astype(dtype)
 
 
 def ingest(data, opt, tag=None):
