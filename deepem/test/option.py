@@ -59,6 +59,7 @@ class Options(object):
         self.parser.add_argument('--blv_num_channels', type=int, default=2)
         self.parser.add_argument('--glia',  action='store_true')
         self.parser.add_argument('--sem',  action='store_true')
+        self.parser.add_argument('--img',  action='store_true')
 
         # Test-time augmentation
         self.parser.add_argument('--test_aug', type=int, default=None, nargs='+')
