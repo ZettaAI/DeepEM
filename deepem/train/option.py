@@ -89,6 +89,10 @@ class Options(object):
         self.parser.add_argument('--mip', type=int, default=0)
         self.parser.add_argument('--lost', action='store_true')
         self.parser.add_argument('--random', action='store_true')
+        self.parser.add_argument('--noise', action='store_true')
+        self.parser.add_argument('--noise_min', type=float, default=0.01)
+        self.parser.add_argument('--noise_max', type=float, default=0.1)
+        self.parser.add_argument('--noise_per_channel', action='store_true')
 
         # Tilt-series electron tomography
         self.parser.add_argument('--tilt_series', type=int, default=0)
@@ -164,6 +168,11 @@ class Options(object):
         aug_keys = ['recompute','flip','grayscale','warping','misalign',
                     'interp','missing','blur','box','mip','lost','random']
         opt.aug_params = {k: args[k] for k in aug_keys}
+
+        # Noise
+        if opt.noise:
+            opt.aug_params['noise'] = (opt.noise_min, opt.noise_max,
+                                       opt.noise_per_channel)
 
         # Model
         opt.fov = tuple(opt.fov)
