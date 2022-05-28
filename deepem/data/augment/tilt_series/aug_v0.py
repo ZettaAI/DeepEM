@@ -2,7 +2,7 @@ from augmentor import *
 
 
 def get_augmentation(is_train, tilt_series=(0,0,0), tilt_series_crop=None,
-                     recompute=False, flip=False, **kwargs):
+                     recompute=False, flip=False, noise=None, **kwargs):
     augs = []
 
     # Flip & rotate (isotropic)
@@ -24,6 +24,11 @@ def get_augmentation(is_train, tilt_series=(0,0,0), tilt_series_crop=None,
         augs.append(SubsampleLabels(factor=(ts_out,1,1)))
         if tilt_series_crop is not None:
             augs.append(CropLabels(tilt_series_crop))
+
+    if noise is not None:
+        sigma = (noise[0], noise[1])
+        per_channel = noise[2]
+        augs.append(AdditiveGaussianNoise(sigma, per_channel))
 
     # Recompute connected components
     if recompute:
