@@ -18,6 +18,12 @@ def get_augmentation(is_train, tilt_series=(0,0,0), tilt_series_crop=None,
         assert ts_in % ts_out == 0
         if ts_n == 1: 
             augs.append(TiltSeries(ts_in, projections=[NormalView(ts_in)]))
+        elif ts_n == 3:
+            prjs = list()
+            prjs.append(NormalView(ts_in))
+            prjs.append(TiltedView(ts_in,  1, -1))  # y + 45
+            prjs.append(TiltedView(ts_in, -1, -1))  # y - 45
+            augs.append(TiltSeries(ts_in, projections=prjs))
         else:
             assert ts_n == 5
             augs.append(TiltSeries(ts_in))
