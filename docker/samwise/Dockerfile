@@ -18,12 +18,12 @@ RUN apt-get update \
     && conda clean -t -p \
     # pypi packages
     && pip install --no-cache-dir --upgrade \
-        cloud-volume task-queue tensorboardX \
+        cloud-volume==8.8.2 task-queue tensorboardX \
     # github packages
     && pip install --no-cache-dir \
         git+https://github.com/seung-lab/DataProvider3 \
         git+https://github.com/seung-lab/Augmentor \
-        git+https://github.com/seung-lab/pytorch-emvision \
+        git+https://github.com/seung-lab/pytorch-emvision@pg-fly-larva-001 \
         git+https://github.com/ZettaAI/samwise
 
 RUN mkdir -p /workspace
