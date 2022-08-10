@@ -8,7 +8,7 @@ import dataprovider3.emio as emio
 
 
 hemibrain_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/hemibrain'
-larva_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/larva'
+larva_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/larva/lensoftruth'
 data_keys = [f"h{i:03d}" for i in range(8)] + [f"l{i:03d}" for i in range(2)]
 
 
@@ -21,9 +21,9 @@ def load_data(base_dir, data_ids=None, **kwargs):
         if data_id in data_keys:
 
             if data_id.startswith("h"):  # hemibrain
-                samplepath = os.path.join(hemibrain_dir, data_id)
+                samplepath = os.path.join(hemibrain_dir, data_id[1:])
             elif data_id.startswith("l"):  # larva
-                samplepath = os.path.join(larva_dir, data_id)
+                samplepath = os.path.join(larva_dir, data_id[1:])
 
             cf = CloudFiles(samplepath)
             sampleinfo = cf.get_json("info")
