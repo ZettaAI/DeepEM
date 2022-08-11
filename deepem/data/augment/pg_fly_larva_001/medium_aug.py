@@ -40,7 +40,7 @@ def get_augmentation(
                     dims=(5, 25),
                     margin=(5, 5, 5),
                     density=0.1,
-                    skip=1,
+                    skip=0.8,
                     aniso=1,
                 )
             )
