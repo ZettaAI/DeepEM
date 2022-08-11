@@ -43,14 +43,14 @@ def load_dataset(dpath, info, **kwargs):
     vers = "000"
     fpath = os.path.join(dpath, "image", vers)
     print(fpath)
-    dset['img'] = cv.CloudVolume(fpath)[:].transpose(3, 2, 1, 0)[0, ...]
+    dset['img'] = cv.CloudVolume(fpath, cache=True)[:].transpose(3, 2, 1, 0)[0, ...]
     dset['img'] = (dset['img'] / 255.).astype(np.float32)
 
     # Segmentation
     vers = sorted(info["annotations"]["seg"]["versions"].keys())[-1]
     fpath = os.path.join(dpath, "seg", vers)
     print(fpath)
-    dset['seg'] = cv.CloudVolume(fpath)[:].transpose(3, 2, 1, 0)[0, ...]
+    dset['seg'] = cv.CloudVolume(fpath, cache=True)[:].transpose(3, 2, 1, 0)[0, ...]
 
     # Additoinal info
     dset['loc'] = True
