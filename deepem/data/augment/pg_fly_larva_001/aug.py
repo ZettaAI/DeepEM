@@ -11,6 +11,9 @@ def get_augmentation(
 ):
     augs = list()
 
+    # Flip & rotate
+    augs.append(FlipRotateIsotropic())
+
     # Brightness & contrast perturbation
     augs.append(
         MixedGrayscale2D(
