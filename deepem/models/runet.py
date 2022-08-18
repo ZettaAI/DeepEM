@@ -1,0 +1,67 @@
+import torch
+import torch.nn as nn
+
+import emvision
+from emvision.models import utils
+
+from deepem.models.layers import Conv
+
+
+def create_model(opt):
+    if opt.width:
+        width = opt.width
+        depth = len(width)
+    else:
+        width = [16,32,64,128,256,512]
+        depth = opt.depth
+
+    if opt.group > 0:
+        # Group normalization
+        core = emvision.models.rsunet_gn(width=width[:depth], group=opt.group)
+    else:
+        # Batch (instance) normalization
+        core = emvision.models.isoRUNet(width=width[:depth])
+    return Model(core, opt.in_spec, opt.out_spec, width[0])
+
+
+class InputBlock(nn.Sequential):
+    def __init__(self, in_channels, out_channels, kernel_size):
+        super(InputBlock, self).__init__()
+        self.add_module('conv', Conv(in_channels, out_channels, kernel_size, mode="valid"))
+        self.crop_margin = utils.crop_margin(kernel_size, mode="valid")
+
+
+class OutputBlock(nn.Module):
+    def __init__(self, in_channels, out_spec, kernel_size):
+        super(OutputBlock, self).__init__()
+        for k, v in out_spec.items():
+            out_channels = v[-4]
+            self.add_module(k,
+                    Conv(in_channels, out_channels, kernel_size, bias=True, mode="valid"))
+        self.crop_margin = emvision.models.crop_margin(kernel_size, mode="valid")
+
+    def forward(self, x):
+        return {k: m(x) for k, m in self.named_children()}
+
+
+class Model(nn.Sequential):
+    """
+    Residual U-Net.
+    """
+    def __init__(self, core, in_spec, out_spec, out_channels, io_kernel=(5,5,5)):
+        super(Model, self).__init__()
+
+        assert len(in_spec)==1, "model takes a single input"
+        in_channels = 1
+
+        self.add_module('in', InputBlock(in_channels, out_channels, io_kernel))
+        self.add_module('core', core)
+        self.add_module('out', OutputBlock(out_channels, out_spec, io_kernel))
+
+        self.crop_margin = utils.sum3(
+            utils.sum3(
+                self.in.crop_margin,
+                self.out.crop_margin,
+            ),
+            self.core.crop_margin
+        )
