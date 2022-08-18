@@ -15,12 +15,7 @@ def create_model(opt):
         width = [16,32,64,128,256,512]
         depth = opt.depth
 
-    if opt.group > 0:
-        # Group normalization
-        core = emvision.models.rsunet_gn(width=width[:depth], group=opt.group)
-    else:
-        # Batch (instance) normalization
-        core = emvision.models.isoRUNet(width=width[:depth])
+    core = emvision.models.RUNet(width=width[:depth])
     return Model(core, opt.in_spec, opt.out_spec, width[0])
 
 
@@ -38,7 +33,7 @@ class OutputBlock(nn.Module):
             out_channels = v[-4]
             self.add_module(k,
                     Conv(in_channels, out_channels, kernel_size, bias=True, mode="valid"))
-        self.crop_margin = emvision.models.crop_margin(kernel_size, mode="valid")
+        self.crop_margin = utils.crop_margin(kernel_size, mode="valid")
 
     def forward(self, x):
         return {k: m(x) for k, m in self.named_children()}
@@ -54,14 +49,14 @@ class Model(nn.Sequential):
         assert len(in_spec)==1, "model takes a single input"
         in_channels = 1
 
-        self.add_module('in', InputBlock(in_channels, out_channels, io_kernel))
+        self.add_module('inblock', InputBlock(in_channels, out_channels, io_kernel))
         self.add_module('core', core)
-        self.add_module('out', OutputBlock(out_channels, out_spec, io_kernel))
+        self.add_module('outblock', OutputBlock(out_channels, out_spec, io_kernel))
 
         self.crop_margin = utils.sum3(
             utils.sum3(
-                self.in.crop_margin,
-                self.out.crop_margin,
+                self.inblock.crop_margin,
+                self.outblock.crop_margin,
             ),
             self.core.crop_margin
         )
