@@ -9,9 +9,9 @@ from deepem.utils import torch_utils
 
 class Conv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1,
-                       bias=False):
+                       bias=False, mode="same"):
         super(Conv, self).__init__()
-        padding = pad_size(kernel_size, 'same')
+        padding = pad_size(kernel_size, mode)
         self.conv = nn.Conv3d(in_channels, out_channels,
             kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)
         nn.init.kaiming_normal_(self.conv.weight, nonlinearity='relu')
