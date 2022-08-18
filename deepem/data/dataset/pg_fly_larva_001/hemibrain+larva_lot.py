@@ -58,7 +58,7 @@ def load_dataset(dpath, info, **kwargs):
     dset['msk'] = np.zeros(seg.shape, dtype=np.uint8)
     # hack for one mismatched bbox
     if dpath.endswith("larva/lensoftruth/002"):
-        dset['msk'][128:-128, 138:-138, 128:-128] = 1
+        dset['msk'][128:-128, 128:-148, 128:-128] = 1
     else:
         dset['msk'][128:-128, 128:-128, 128:-128] = 1
 
