@@ -1,6 +1,6 @@
 """Based on flyem/aug_mip1.py with some modifications.
 
-Mostly commenting out things that we might not need for faster
+Mostly removing things that we might not need for faster
 feedback cycles.
 """
 from augmentor import *
@@ -54,6 +54,6 @@ def get_augmentation(
         augs.append(Warp(skip=0.3, do_twist=False, rot_max=45.0, scale_max=1.1))
 
     # Flip & rotate
-    augs.append(FlipRotate())
+    augs.append(FlipRotateIsotropic())
 
     return Compose(augs)
