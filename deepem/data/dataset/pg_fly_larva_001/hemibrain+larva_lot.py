@@ -4,8 +4,6 @@ import numpy as np
 import cloudvolume as cv
 from cloudfiles import CloudFiles
 
-import dataprovider3.emio as emio
-
 
 hemibrain_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/hemibrain'
 larva_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/larva/lensoftruth'
