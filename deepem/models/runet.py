@@ -43,7 +43,7 @@ class Model(nn.Sequential):
     """
     Residual U-Net.
     """
-    def __init__(self, core, in_spec, out_spec, out_channels, io_kernel=(5,5,5)):
+    def __init__(self, core, in_spec, out_spec, out_channels, io_kernel=(3,3,3)):
         super(Model, self).__init__()
 
         assert len(in_spec)==1, "model takes a single input"
