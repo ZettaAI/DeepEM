@@ -7,8 +7,11 @@ from cloudfiles import CloudFiles
 
 hemibrain_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/hemibrain'
 larva_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/larva/lensoftruth-more-context'
-data_keys = [f"h{i:03d}" for i in range(8)] + [f"l{i:03d}" for i in range(4)]
-
+data_keys = (
+    [f"h{i:03d}" for i in range(8)]
+    + [f"l{i:03d}" for i in range(4)]
+    + ["l006", "l008"]
+)
 
 def load_data(base_dir, data_ids=None, **kwargs):
     if data_ids is None:
@@ -59,9 +62,11 @@ def load_dataset(dpath, info, **kwargs):
     # Mask
     seg = dset['seg']
     dset['msk'] = np.zeros(seg.shape, dtype=np.uint8)
-    # hack for one mismatched bbox
     if "larva" in dpath:
-        dset['msk'][95:-95, 95:-95, 95:-95] = 1
+        if dpath.endswith("006") or dpath.endswith("008"):
+            dset['msk'][86:-85, 86:-85, 86:-85] = 1
+        else:
+            dset['msk'][95:-95, 95:-95, 95:-95] = 1
     else:
         dset['msk'][32:-32, 32:-32, 32:-32] = 1
 
