@@ -62,13 +62,13 @@ def load_dataset(dpath, info, **kwargs):
     # Mask
     seg = dset['seg']
     dset['msk'] = np.zeros(seg.shape, dtype=np.uint8)
-    if "larva" in dpath:
+    if "hemibrain" in dpath:
+        dset['msk'][32:-32, 32:-32, 32:-32] = 1
+    else:  # larva dataset
         if dpath.endswith("006") or dpath.endswith("008"):
             dset['msk'][86:-85, 86:-85, 86:-85] = 1
         else:
             dset['msk'][95:-95, 95:-95, 95:-95] = 1
-    else:
-        dset['msk'][32:-32, 32:-32, 32:-32] = 1
 
     return dset
 
