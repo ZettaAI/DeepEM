@@ -56,19 +56,28 @@ def load_dataset(dpath, info, **kwargs):
     cloudvol.fill_missing = True
     dset['seg'] = cloudvol[:].transpose(3, 2, 1, 0)[0, ...]
 
-    # Additoinal info
+    # Additional info
     dset['loc'] = True
 
     # Mask
     seg = dset['seg']
     dset['msk'] = np.zeros(seg.shape, dtype=np.uint8)
-    if "larva" in dpath:
-        if dpath.endswith("006") or dpath.endswith("008"):
+    if "hemibrain" in dpath:
+        dset['msk'][32:-32, 32:-32, 32:-32] = 1
+    else:  # larva dataset
+        if dpath.endswith("002"):
+            dset['msk'][95:-95, 93:-98, 95:-95] = 1
+        elif dpath.endswith("006"):
             dset['msk'][86:-85, 86:-85, 86:-85] = 1
+        elif dpath.endswith("007"):
+            dset['msk'][80:-80, 80:-80, 80:-80] = 1
+        elif dpath[-3:] in ["004", "005", "008"]:
+            dset['msk'][86:-86, 86:-86, 86:-86] = 1
         else:
             dset['msk'][95:-95, 95:-95, 95:-95] = 1
-    else:
-        dset['msk'][32:-32, 32:-32, 32:-32] = 1
+
+    # unknown/unclear segment
+    dset["msk"][seg == 999] = 0
 
     return dset
 
