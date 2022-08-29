@@ -65,7 +65,9 @@ def load_dataset(dpath, info, **kwargs):
     if "hemibrain" in dpath:
         dset['msk'][64:-64, 64:-64, 64:-64] = 1
     else:  # larva dataset
-        if dpath.endswith("006") or dpath.endswith("008"):
+        if dpath.endswith("002"):
+            dset['msk'][190:-190, 185:-195, 190:-190] = 1
+        elif dpath.endswith("006") or dpath.endswith("008"):
             dset['msk'][171:-171, 171:-171, 171:-171] = 1
         else:
             dset['msk'][190:-190, 190:-190, 190:-190] = 1
