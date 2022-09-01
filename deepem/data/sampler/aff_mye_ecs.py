@@ -69,7 +69,7 @@ class Sampler(object):
         img = data['img']
         seg = data['seg']
         mye = data['mye']
-        exc = data['exc']
+        ecs = data['ecs']
         loc = data['loc']
         msk = self.get_mask(data)
 
@@ -80,7 +80,7 @@ class Sampler(object):
         dset.add_mask(key='affinity_mask', data=msk, loc=loc)
         dset.add_data(key='myelin', data=mye)
         dset.add_mask(key='myelin_mask', data=msk)
-        dset.add_data(key='extracellular', data=exc)
+        dset.add_data(key='extracellular', data=ecs)
         dset.add_mask(key='extracellular_mask', data=msk)
 
         return dset

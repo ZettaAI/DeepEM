@@ -49,7 +49,7 @@ class Options(object):
         self.parser.add_argument('--mit',  action='store_true')
         self.parser.add_argument('--mye',  action='store_true')
         self.parser.add_argument('--mye_thresh', type=float, default=0.5)
-        self.parser.add_argument('--exc',  action='store_true')
+        self.parser.add_argument('--ecs',  action='store_true')
         self.parser.add_argument('--blv',  action='store_true')
         self.parser.add_argument('--blv_num_channels', type=int, default=2)
         self.parser.add_argument('--glia',  action='store_true')
@@ -162,7 +162,7 @@ class Options(object):
             opt.out_spec['mitochondria'] = (1,) + opt.outputsz
         if opt.mye:
             opt.out_spec['myelin'] = (1,) + opt.outputsz
-        if opt.exc:
+        if opt.ecs:
             opt.out_spec['extracellular'] = (1,) + opt.outputsz
         if opt.blv:
             opt.out_spec['blood_vessel'] = (opt.blv_num_channels,) + opt.outputsz
@@ -192,7 +192,7 @@ class Options(object):
             opt.scan_spec['mitochondria'] = (1,) + opt.outputsz
         if opt.mye:
             opt.scan_spec['myelin'] = (1,) + opt.outputsz
-        if opt.exc:
+        if opt.ecs:
             opt.scan_spec['extracellular'] = (1,) + opt.outputsz
         if opt.blv:
             opt.scan_spec['blood_vessel'] = (opt.blv_num_channels,) + opt.outputsz
