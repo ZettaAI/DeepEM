@@ -22,8 +22,8 @@ RUN apt-get update \
     # github packages
     && pip install --no-cache-dir \
         git+https://github.com/seung-lab/DataProvider3 \
-        git+https://github.com/ZettaAI/Augmentor@flipiso \
-        git+https://github.com/seung-lab/pytorch-emvision@pg-fly-larva-001 \
+        git+https://github.com/ZettaAI/Augmentor \
+        git+https://github.com/seung-lab/pytorch-emvision \
         git+https://github.com/ZettaAI/samwise
 
 RUN mkdir -p /workspace
