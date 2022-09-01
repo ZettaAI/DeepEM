@@ -174,6 +174,12 @@ class Logger(object):
                 target = sample[k][0,...].cpu()
                 self.log_image(tag, target, iter_num)
 
+            elif k == 'extracellular':
+                # Prediction
+                tag = f"{phase}/images/{k}"
+                pred = torch.sigmoid(preds[k][0,...]).cpu()
+                self.log_image(tag, pred, iter_num)
+
     def log_image(self, tag, tensor, iter_num):
         assert(torch.is_tensor(tensor))
         depth = tensor.shape[-3]
