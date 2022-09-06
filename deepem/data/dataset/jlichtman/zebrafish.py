@@ -8,7 +8,7 @@ from deepem.data.dataset.aibs import minnie
 
 
 zfish_dir = "jlichtman_zebrafish/v1"
-data_keys = ['cutout001','cutout002']
+data_keys = [f"cutout00{i+1}" for i in range(7)]
 
 
 def load_data(base_dir, data_ids=None, **kwargs):
