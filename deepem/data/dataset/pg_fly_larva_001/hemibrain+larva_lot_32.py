@@ -8,9 +8,8 @@ from cloudfiles import CloudFiles
 hemibrain_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/hemibrain'
 larva_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/larva/lensoftruth-more-context'
 data_keys = (
-    [f"h{i:03d}" for i in range(8)]
-    + [f"l{i:03d}" for i in range(4)]
-    + ["l006", "l008"]
+    [f"h{i:03d}" for i in range(8)]  # hemibrain
+    + [f"l{i:03d}" for i in range(9)]  # larva
 )
 
 def load_data(base_dir, data_ids=None, **kwargs):
