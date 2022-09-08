@@ -85,6 +85,7 @@ class Options(object):
         self.parser.add_argument('--width', type=int, default=None, nargs='+')
         self.parser.add_argument('--group', type=int, default=0)
         self.parser.add_argument('--act', default='ReLU')
+        self.parser.add_argument('--no_norm', dest="norm", action="store_false")
 
         # Data augmentation
         self.parser.add_argument('--recompute', action='store_true')

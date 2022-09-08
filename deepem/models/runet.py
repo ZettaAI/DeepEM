@@ -15,7 +15,10 @@ def create_model(opt):
         width = [16,32,64,128,256,512]
         depth = opt.depth
 
-    core = emvision.models.RUNet(width=width[:depth])
+    if not opt.norm:
+        core = emvision.models.RUNet(width=width[:depth], norm=None)
+    else:
+        core = emvision.models.RUNet(width=width[:depth])
     return Model(core, opt.in_spec, opt.out_spec, width[0])
 
 
