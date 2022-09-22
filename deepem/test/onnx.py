@@ -31,9 +31,9 @@ def batchnorm3d_to_instancenorm3d(model):
 def dummy_input(opt, device='cpu'):
     inputs = {}
     for k in sorted(opt.in_spec):
-        dummy = np.random.uniform(size=opt.in_spec[k])
-        dummy = np.expand_dims(dummy, axis=0)
-        inputs[k] = torch.from_numpy(dummy).to(device)
+        size = (1,) + tuple(opt.in_spec[k])
+        dummy = torch.randn(*size, device=device)
+        inputs[k] = dummy.to(device)
     return inputs
 
 
