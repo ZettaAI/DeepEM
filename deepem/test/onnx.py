@@ -49,7 +49,7 @@ def save_onnx(opt):
                       export_params=True,
                       opset_version=10,
                       input_names=["input"],
-                      output_names=["output"])
+                      output_names=[*opt.out_spec.keys()])
 
 
 if __name__ == "__main__":
