@@ -8,9 +8,8 @@ from cloudfiles import CloudFiles
 hemibrain_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/hemibrain'
 larva_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/larva/lensoftruth-more-context'
 data_keys = (
-    [f"h{i:03d}" for i in range(8)]
-    + [f"l{i:03d}" for i in range(4)]
-    + ["l006", "l008"]
+    [f"h{i:03d}" for i in range(8)]  # hemibrain
+    + [f"l{i:03d}" for i in range(9)]  # larva
 )
 
 def load_data(base_dir, data_ids=None, **kwargs):
@@ -56,7 +55,7 @@ def load_dataset(dpath, info, **kwargs):
     cloudvol.fill_missing = True
     dset['seg'] = cloudvol[:].transpose(3, 2, 1, 0)[0, ...]
 
-    # Additoinal info
+    # Additional info
     dset['loc'] = True
 
     # Mask
@@ -67,10 +66,17 @@ def load_dataset(dpath, info, **kwargs):
     else:  # larva dataset
         if dpath.endswith("002"):
             dset['msk'][190:-190, 185:-195, 190:-190] = 1
-        elif dpath.endswith("006") or dpath.endswith("008"):
+        elif dpath.endswith("006"):
             dset['msk'][171:-171, 171:-171, 171:-171] = 1
+        elif dpath.endswith("007"):
+            dset['msk'][160:-160, 160:-160, 160:-160] = 1
+        elif dpath[-3:] in ["004", "005", "008"]:
+            dset['msk'][172:-172, 172:-172, 172:-172] = 1
         else:
             dset['msk'][190:-190, 190:-190, 190:-190] = 1
+
+    # unknown/unclear segment
+    dset["msk"][seg == 999] = 0
 
     return dset
 
