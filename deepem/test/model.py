@@ -90,3 +90,18 @@ class AmpModel(Model):
     def forward(self, sample):
         with torch.cuda.amp.autocast():
             return super().forward(sample)
+
+
+class OnnxModel(Model):
+    def __init__(self, *args):
+        super(OnnxModel, self).__init__(*args)
+
+    def forward(self, sample):
+        inputs = [sample[k] for k in sorted(self.in_spec)]
+        preds = self.model(*inputs)
+        preds = torch.cat(preds, dim=1)
+        if preds.dtype == torch.float16:
+            preds = preds.float().sigmoid().half()
+        else:
+            preds = preds.sigmoid()
+        return preds
