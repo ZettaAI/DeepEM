@@ -49,10 +49,12 @@ if __name__ == "__main__":
     
     # Run ONNX conversion.
     torch.onnx.export(
-        torch_model, dummy_input(opt, device=opt.device), fname,
+        torch_model,
+        (dummy_input(opt, device=opt.device), {}),
+        fname,
         verbose=False,
         export_params=True,
-        opset_version=10,
+        opset_version=16,
         input_names=["input"],
         output_names=["output"]
     )
