@@ -20,7 +20,8 @@ def create_model(opt):
     else:
         # Batch normalization
         core = rsunet_act(width=width[:depth], act=opt.act)
-    return Model(core, opt.in_spec, opt.out_spec, width[0], cropsz=opt.cropsz)
+    return Model(core, opt.in_spec, opt.out_spec, width[0], cropsz=opt.cropsz,
+                 onnx=opt.onnx)
 
 
 class InputBlock(nn.Sequential):

@@ -19,7 +19,8 @@ def create_model(opt):
     else:
         # Batch (instance) normalization
         core = emvision.models.RSUNet(width=width[:depth])
-    return Model(core, opt.in_spec, opt.out_spec, width[0], cropsz=opt.cropsz)
+    return Model(core, opt.in_spec, opt.out_spec, width[0], cropsz=opt.cropsz,
+                 onnx=opt.onnx)
 
 
 class InputBlock(nn.Sequential):
