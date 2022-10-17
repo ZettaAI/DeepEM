@@ -54,7 +54,7 @@ if __name__ == "__main__":
         fname,
         verbose=False,
         export_params=True,
-        opset_version=16,
+        opset_version=opt.opset_version,
         input_names=["input"],
         output_names=["output"]
     )
