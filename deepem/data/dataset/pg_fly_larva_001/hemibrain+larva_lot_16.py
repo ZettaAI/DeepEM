@@ -7,9 +7,11 @@ from cloudfiles import CloudFiles
 
 hemibrain_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/hemibrain'
 larva_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/larva/lensoftruth-more-context'
+focused_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/larva/lensoftruth-focused'
 data_keys = (
     [f"h{i:03d}" for i in range(8)]  # hemibrain
-    + [f"l{i:03d}" for i in range(9)]  # larva
+    + [f"l{i:03d}" for i in range(13)]  # larva
+    + [f"f{i:03d}" for i in range(3)]  # larva focused annotation
 )
 
 def load_data(base_dir, data_ids=None, **kwargs):
@@ -24,6 +26,8 @@ def load_data(base_dir, data_ids=None, **kwargs):
                 samplepath = os.path.join(hemibrain_dir, data_id[1:])
             elif data_id.startswith("l"):  # larva
                 samplepath = os.path.join(larva_dir, data_id[1:])
+            elif data_id.startswith("f"):  # larva focused annotation
+                samplepath = os.path.join(focused_dir, data_id[1:])
 
             cf = CloudFiles(samplepath)
             sampleinfo = cf.get_json("info")
@@ -63,10 +67,18 @@ def load_dataset(dpath, info, **kwargs):
     dset['msk'] = np.zeros(seg.shape, dtype=np.uint8)
     if "hemibrain" in dpath:
         dset['msk'][64:-64, 64:-64, 64:-64] = 1
+
+    elif "focused" in dpath:
+        # manually drawn mask
+        fpath = os.path.join(dpath, "seg", f"{vers}_mask")
+        cloudvol = cv.CloudVolume(fpath, cache=True, mip=(16, 16, 16))
+        cloudvol.fill_missing = True
+        dset["msk"] = cloudvol[:].transpose(3, 2, 1, 0)[0, ...]
+
     else:  # larva dataset
         if dpath.endswith("002"):
             dset['msk'][190:-190, 185:-195, 190:-190] = 1
-        elif dpath.endswith("006"):
+        elif dpath[-3:] in ["006", "010", "012"]:
             dset['msk'][171:-171, 171:-171, 171:-171] = 1
         elif dpath.endswith("007"):
             dset['msk'][160:-160, 160:-160, 160:-160] = 1
