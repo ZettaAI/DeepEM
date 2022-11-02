@@ -112,6 +112,7 @@ class Options(object):
 
         # Export to ONNX
         self.parser.add_argument('--onnx', action='store_true')
+        self.parser.add_argument('--opset_version', type=int, default=10)
 
         self.initialized = True        
 
