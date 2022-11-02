@@ -47,14 +47,19 @@ if __name__ == "__main__":
     print(f"replaced {count} BatchNorm3d layer to InstanceNorm3d layer.")
     fname = os.path.join(opt.model_dir, "model{}.onnx".format(opt.chkpt_num))
     
+    # Arugment passing differs according to the PyTorch version
+    args = dummy_input(opt, device=opt.device)
+    if torch.__version__ >= '1.10':
+        args = (args, {})
+
     # Run ONNX conversion.
     torch.onnx.export(
         torch_model,
-        (dummy_input(opt, device=opt.device), {}),
+        args,
         fname,
         verbose=False,
         export_params=True,
-        opset_version=16,
+        opset_version=opt.opset_version,
         input_names=["input"],
         output_names=["output"]
     )
