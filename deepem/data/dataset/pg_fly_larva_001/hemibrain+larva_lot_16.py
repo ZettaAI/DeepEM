@@ -11,7 +11,7 @@ focused_dir = 'gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/larva
 data_keys = (
     [f"h{i:03d}" for i in range(8)]  # hemibrain
     + [f"l{i:03d}" for i in range(13)]  # larva
-    + [f"f{i:03d}" for i in range(5)]  # larva focused annotation
+    + [f"f{i:03d}" for i in range(8)]  # larva focused annotation
 )
 
 def load_data(base_dir, data_ids=None, **kwargs):
