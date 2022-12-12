@@ -6,7 +6,7 @@ from cloudfiles import CloudFiles
 
 
 img_cvpath = "gs://zetta-prieto-godino-fly-larva-001-image/image-v1-iso"
-dataset_dir = "gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/somas"
+dataset_dir = "gs://zetta-prieto-godino-fly-larva-001-seg-temp/seg-dataset/somata"
 data_keys = (
     "6388f1170100009d0023f9ef",
     "6388eed00100009d0023f9e6",
