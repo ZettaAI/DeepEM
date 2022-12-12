@@ -75,7 +75,7 @@ def load_dataset(dpath, info, **kwargs):
     dset['msk'] = cloudvol[:].transpose(3, 2, 1, 0)[0, ...]
 
     # unknown/unclear segment
-    dset["msk"][seg == 999] = 0
+    dset["msk"][dset["seg"] == 999] = 0
 
     return dset
 
