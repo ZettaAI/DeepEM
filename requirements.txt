@@ -5,3 +5,4 @@ task-queue
 tensorflow
 tensorboard
 tensorboardX
+zettasets

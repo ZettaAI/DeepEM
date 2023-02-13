@@ -125,60 +125,16 @@ class Logger(object):
                 seg = sample[k][0,0,...].cpu().numpy().astype('uint32')
                 rgb = torch.from_numpy(py_utils.seg2rgb(seg))
                 self.log_image(tag, rgb, iter_num)
-
-            elif k == 'myelin':
+            else:
                 # Prediction
                 tag = f"{phase}/images/{k}"
                 pred = torch.sigmoid(preds[k][0,...]).cpu()
                 self.log_image(tag, pred, iter_num)
 
-            elif k == 'mitochondria':
-                # Prediction
-                tag = f"{phase}/images/{k}"
-                pred = torch.sigmoid(preds[k][0,...]).cpu()
-                self.log_image(tag, pred, iter_num)
-
-                # Target
-                tag = f"{phase}/labels/{k}"
-                target = sample[k][0,...].cpu()
-                self.log_image(tag, target, iter_num)
-
-            elif k == 'synapse':
-                # Prediction
-                tag = f"{phase}/images/{k}"
-                pred = torch.sigmoid(preds[k][0,...]).cpu()
-                self.log_image(tag, pred, iter_num)
-
-                # Target
-                tag = f"{phase}/labels/{k}"
-                target = sample[k][0,...].cpu()
-                self.log_image(tag, target, iter_num)
-
-            elif k == 'blood_vessel':
-                # Prediction
-                tag = f"{phase}/images/{k}"
-                pred = torch.sigmoid(preds[k][0,...]).cpu()
-                if self.blv_num_channels == 2:
-                    zero = torch.zeros_like(pred[[0],...])
-                    pred = torch.cat((pred,zero), dim=-4)
-                self.log_image(tag, pred, iter_num)
-
-            elif k == 'glia':
-                # Prediction
-                tag = f"{phase}/images/{k}"
-                pred = torch.sigmoid(preds[k][0,...]).cpu()
-                self.log_image(tag, pred, iter_num)
-
-                # Target
-                tag = f"{phase}/labels/{k}"
-                target = sample[k][0,...].cpu()
-                self.log_image(tag, target, iter_num)
-
-            elif k == 'image':
-                # Prediction
-                tag = f"{phase}/images/{k}"
-                pred = torch.sigmoid(preds[k][0,...]).cpu()
-                self.log_image(tag, pred, iter_num)
+                # Mask
+                tag = f"{phase}/masks/{k}"
+                msk = sample[k + '_mask'][0,...].cpu()
+                self.log_image(tag, msk, iter_num)
 
                 # Target
                 tag = f"{phase}/labels/{k}"

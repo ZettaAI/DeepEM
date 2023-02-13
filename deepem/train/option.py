@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import numpy as np
 import samwise
@@ -16,16 +17,19 @@ class Options(object):
 
     def initialize(self):
         self.parser.add_argument('--exp_name', required=True)
-        self.parser.add_argument('--data_dir', required=True)
-        self.parser.add_argument('--data',     required=True)
         self.parser.add_argument('--model',    required=True)
+        self.parser.add_argument('--data',     required=True)
         self.parser.add_argument('--sampler',  required=True)
         self.parser.add_argument('--augment',  default=None)
         self.parser.add_argument('--modifier', default=None)
 
+        # zettasets
+        self.parser.add_argument('--zettaset_path', required=True)
+        self.parser.add_argument('--zettaset_lookup', type=json.loads, default=None)
+
         # file synchronization for spot/preemptible training
         self.parser.add_argument('--samwise_map', nargs='*', default=None)
-        self.parser.add_argument('--samwise_period', type=int, default=600)
+        self.parser.add_argument('--samwise_period', type=int, default=600)        
 
         # cuDNN auto-tuning
         self.parser.add_argument('--no_autotune', action='store_false')
@@ -121,6 +125,7 @@ class Options(object):
         self.parser.add_argument('--blv_num_channels', type=int, default=2)
         self.parser.add_argument('--glia', type=float, default=0)  # Glia
         self.parser.add_argument('--glia_mask', action='store_true')
+        self.parser.add_argument('--soma', type=float, default=0)  # Soma
         self.parser.add_argument('--img', type=float, default=0)  # Image
 
         # Test training
@@ -230,6 +235,7 @@ class Options(object):
             'fld':  ('fold', 1),
             'blv':  ('blood_vessel', opt.blv_num_channels),
             'glia': ('glia', 1),
+            'soma': ('soma', 1),
             'img':  ('image', 1),
         }
 
@@ -251,8 +257,11 @@ class Options(object):
 
         assert len(opt.out_spec) > 0
         assert len(opt.out_spec) == len(opt.loss_weight) == len(class_keys)
-        opt.data_params = dict(class_keys=class_keys,
-                               glia_mask=opt.glia_mask)
+        opt.data_params = dict(
+            class_keys=class_keys,
+            glia_mask=opt.glia_mask,
+            zettaset_lookup=opt.zettaset_lookup
+        )
 
         args = vars(opt)
         print('------------ Options -------------')
