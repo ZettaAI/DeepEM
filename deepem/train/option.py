@@ -263,6 +263,10 @@ class Options(object):
             zettaset_lookup=opt.zettaset_lookup
         )
 
+        # ONNX
+        opt.onnx = False
+
+        # Print options
         args = vars(opt)
         print('------------ Options -------------')
         for k, v in args.items():
