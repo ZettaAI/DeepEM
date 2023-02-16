@@ -1,5 +1,9 @@
+import os
+from io import BytesIO
+
 import torch
 import torch.nn as nn
+from cloudfiles import CloudFiles, paths, exceptions
 
 
 class Model(nn.Module):
@@ -46,7 +50,7 @@ class Model(nn.Module):
         torch.save(self.model.state_dict(), fpath)
 
     def load(self, fpath):
-        chkpt = torch.load(fpath)
+        chkpt = load_chkpt(fpath)
         # Backward compatibility
         state_dict = chkpt['state_dict'] if 'state_dict' in chkpt else chkpt
         if self.pretrain:
@@ -65,3 +69,31 @@ class AmpModel(Model):
     def forward(self, sample):
         with torch.cuda.amp.autocast():
             return super().forward(sample)
+
+
+def load_chkpt(fpath):
+    """Reads a (potentially remote) file and returns a file-like object."""
+    if is_remote_fpath(fpath):
+        remote_dir, basename = os.path.split(fpath)
+        content = CloudFiles(remote_dir).get(basename)
+
+        with BytesIO(content) as f:
+            return torch.load(f)
+
+    else:
+        assert os.path.exists(fpath), f"no file ({fpath}) found"
+
+        return torch.load(fpath)
+
+
+def is_remote_fpath(fpath):
+    """Tests whether a file path points to a remote location.
+
+    Relies on cloudfiles.paths.extract
+    """
+    try:
+        paths.extract(fpath)
+        return True
+
+    except exceptions.UnsupportedProtocolError:
+        return False
