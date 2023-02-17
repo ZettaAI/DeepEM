@@ -134,6 +134,10 @@ class Options(object):
         # Mixed-precision training
         self.parser.add_argument('--mixed_precision', action='store_true')
 
+        # Export to ONNX
+        self.parser.add_argument('--export_onnx', action='store_true')
+        self.parser.add_argument('--opset_version', type=int, default=10)
+
         self.initialized = True
 
     def parse(self):

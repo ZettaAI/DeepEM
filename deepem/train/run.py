@@ -8,6 +8,8 @@ from deepem.train.logger import Logger
 from deepem.train.option import Options
 from deepem.train.utils import *
 
+from deepem.utils.onnx_utils import export_onnx
+
 
 def train(opt):
     # Model
@@ -79,6 +81,8 @@ def train(opt):
             # Model checkpoint
             if (i+1) % opt.chkpt_intv == 0:
                 save_chkpt(model, opt.model_dir, i+1, optimizer)
+                if opt.export_onnx:
+                    export_onnx(opt, i+1)
 
             # Reset timer.
             t0 = time.time()
