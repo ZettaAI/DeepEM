@@ -32,7 +32,7 @@ RUN apt-get update \
     && conda clean -t -p \
     # pypi packages
     && pip install --no-cache-dir --upgrade \
-        cloud-volume task-queue tensorboardX imgaug \
+        cloud-volume task-queue tensorboardX imgaug wandb \
     # github packages
     && pip install --no-cache-dir \
         git+https://github.com/seung-lab/DataProvider3 \
