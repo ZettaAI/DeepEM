@@ -54,6 +54,7 @@ class Logger(object):
         stats = self.monitor[phase].flush()
         self.log(phase, iter_num, stats)
         self.display(phase, iter_num, stats)
+        return stats
 
     def log(self, phase, iter_num, stats):
         for k, v in stats.items():
@@ -104,8 +105,7 @@ class Logger(object):
             if num_channels > 3:
                 self.log_image(tag, tensor[0:3,...], iter_num)
             else:
-                self.log_image(tag, tensor, iter_num)
-            
+                self.log_image(tag, tensor, iter_num)            
 
         # Outputs
         for k in sorted(self.out_spec):
