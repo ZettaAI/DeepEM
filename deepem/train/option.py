@@ -26,6 +26,7 @@ class Options(object):
         # zettasets
         self.parser.add_argument('--zettaset_path', required=True)
         self.parser.add_argument('--zettaset_lookup', type=json.loads, default=None)
+        self.parser.add_argument('--zettaset_padding', type=vec3, default=(0, 0, 0))
 
         # file synchronization for spot/preemptible training
         self.parser.add_argument('--samwise_map', nargs='*', default=None)
@@ -264,7 +265,8 @@ class Options(object):
         opt.data_params = dict(
             class_keys=class_keys,
             glia_mask=opt.glia_mask,
-            zettaset_lookup=opt.zettaset_lookup
+            zettaset_lookup=opt.zettaset_lookup,
+            zettaset_padding=opt.zettaset_padding,
         )
 
         # ONNX
