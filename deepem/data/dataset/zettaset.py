@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from cloudvolume import CloudVolume
+from cloudvolume import CloudVolume, Bbox
 import numpy as np
 from numpy.typing import ArrayLike
 
@@ -37,6 +37,7 @@ def load_data(
 def load_sample(
     sample: Sample,
     zettaset_lookup: dict[str, str] | None = None,
+    zettaset_padding: tuple[int, int, int] = (0, 0, 0),
     **kwargs
 ) -> dict[str, np.ndarray]:
     """Load image and labels from a Sample."""
@@ -46,12 +47,21 @@ def load_sample(
 
     dset: dict[str, np.ndarray] = {}
 
-    # Image    
+    # Image
+    if zettaset_padding == (0, 0, 0):
+        image_bbox = sample.bbox
+    else:
+        xyz_padding = tuple(reversed(zettaset_padding))
+        image_bbox = Bbox(
+            sample.bbox.minpt - xyz_padding, sample.bbox.maxpt + xyz_padding
+        )
+
     vol = CloudVolume(  # pylint: disable=unsubscriptable-object
         sample.src_image_path,
         mip=sample.base_resolution,
-        fill_missing=True
-    )[sample.bbox.to_slices()]
+        fill_missing=True,
+        bounded=False,
+    )[image_bbox.to_slices()]
     dset["input"] = convert_array(vol)
     dset["input"] = (dset["input"] / 255.).astype('float32')
     print(f"input: {dset['input'].shape}")
@@ -70,15 +80,30 @@ def load_sample(
 
         # Mask
         if key in sample.masks:
-            vol = sample.read_mask(key)[key]            
+            vol = sample.read_mask(key)[key]
             dset[name + "_mask"] = convert_array(vol).astype('uint8')
         else:
             dset[name + "_mask"] = np.ones_like(dset[name], dtype='uint8')
         print(f"{name + '_mask'}: {dset[name + '_mask'].shape}")
 
+        # applying padding
+        if zettaset_padding != (0, 0, 0):
+            widths = (
+                (zettaset_padding[0], zettaset_padding[0]),
+                (zettaset_padding[1], zettaset_padding[1]),
+                (zettaset_padding[2], zettaset_padding[2]),
+            )
+
+            dset[name] = np.pad(dset[name], widths, "constant", constant_values=0)
+            print(f"{name} padded to {dset[name].shape}")
+            dset[f"{name}_mask"] = np.pad(
+                dset[f"{name}_mask"], widths, "constant", constant_values=0
+            )
+            print(f"{name}_mask padded to {dset[name + '_mask'].shape}")
+
     return dset
 
-    
+
 if __name__ == "__main__":
     ZETTASET_PATH = "gs://zetta-research-nickt-volumes/wktools_testing/dataset3"
     dataset = load_data(
@@ -87,4 +112,3 @@ if __name__ == "__main__":
         zettaset_lookup={"soma": "somas"}
     )
     print(dataset)
-
