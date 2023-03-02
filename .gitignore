@@ -6,3 +6,4 @@ experiments/
 *~
 *.chkpt
 *.tgz
+**/wandb/**

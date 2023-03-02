@@ -5,6 +5,7 @@ import torch
 import samwise
 
 from deepem.train.logger import Logger
+from deepem.train.wandb_logger import WandbLogger
 from deepem.train.option import Options
 from deepem.train.utils import *
 
@@ -31,7 +32,7 @@ def train(opt):
 
     # Training loop
     print("========== BEGIN TRAINING LOOP ==========")
-    with Logger(opt) as logger:
+    with Logger(opt) as logger, WandbLogger(opt) as wandb_logger:
 
         # Timer
         t0 = time.time()
@@ -68,15 +69,17 @@ def train(opt):
 
             # Log & display averaged stats.
             if (i+1) % opt.avgs_intv == 0 or i < opt.warm_up:
-                logger.check('train', i+1)
+                stats = logger.check('train', i+1)
+                wandb_logger.log_metrics('train', i+1, stats)
 
             # Image logging
             if (i+1) % opt.imgs_intv == 0:
                 logger.log_images('train', i+1, preds, sample)
+                wandb_logger.log_images('train', i+1, preds, sample)
 
             # Evaluation loop
             if (i+1) % opt.eval_intv == 0:
-                eval_loop(i+1, model, val_loader, opt, logger)
+                eval_loop(i+1, model, val_loader, opt, logger, wandb_logger)
 
             # Model checkpoint
             if (i+1) % opt.chkpt_intv == 0:
@@ -88,7 +91,7 @@ def train(opt):
             t0 = time.time()
 
 
-def eval_loop(iter_num, model, data_loader, opt, logger):
+def eval_loop(iter_num, model, data_loader, opt, logger, wandb_logger):
     if not opt.no_eval:
         model.eval()
 
@@ -115,7 +118,13 @@ def eval_loop(iter_num, model, data_loader, opt, logger):
             t0 = time.time()
 
     # Log & display averaged stats.
-    logger.check('test', iter_num)
+    stats = logger.check('test', iter_num)
+    wandb_logger.log_metrics('test', iter_num, stats)
+
+    # Image logging
+    if iter_num % opt.imgs_intv == 0:
+        logger.log_images('test', iter_num, preds, sample)
+        wandb_logger.log_images('test', iter_num, preds, sample)
     print("-------------------------------------------")
 
     model.train()
