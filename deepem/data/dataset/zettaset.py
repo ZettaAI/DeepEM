@@ -38,6 +38,7 @@ def load_sample(
     sample: Sample,
     zettaset_lookup: dict[str, str] | None = None,
     zettaset_padding: tuple[int, int, int] = (0, 0, 0),
+    zettaset_binarize: list[str] = [],
     **kwargs
 ) -> dict[str, np.ndarray]:
     """Load image and labels from a Sample."""
@@ -77,6 +78,10 @@ def load_sample(
         vol = sample.read(key)[key]
         dset[name] = convert_array(vol)
         print(f"{name}: {dset[name].shape}")
+
+        # Binarize
+        if name in zettaset_binarize:
+            dset[name] = (dset[name] > 0).astype('uint8')
 
         # Mask
         if key in sample.masks:
