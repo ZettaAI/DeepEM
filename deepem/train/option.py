@@ -244,6 +244,15 @@ class Options(object):
             'img':  ('image', 1),
         }
 
+        requires_binarize = [
+            "synapse",
+            "mitochondria",
+            "myelin",
+            "fold",
+            "glia",
+            "soma",
+        ]
+
         # Test training
         if opt.test:
             opt.eval_intv = 100
@@ -267,6 +276,7 @@ class Options(object):
             glia_mask=opt.glia_mask,
             zettaset_lookup=opt.zettaset_lookup,
             zettaset_padding=opt.zettaset_padding,
+            requires_binarize=requires_binarize,
         )
 
         # ONNX
