@@ -63,6 +63,8 @@ class Options(object):
         self.parser.add_argument('--margin1', type=float, default=0)
         self.parser.add_argument('--inverse', action='store_true')
         self.parser.add_argument('--class_balancing', action='store_true')
+        self.parser.add_argument('--class_weight0', type=float, default=None)
+        self.parser.add_argument('--class_weight1', type=float, default=None)
         self.parser.add_argument('--default_aux', action='store_true')
 
         # Optimizer

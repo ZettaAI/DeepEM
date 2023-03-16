@@ -10,13 +10,14 @@ class BCELoss(nn.Module):
     Binary cross entropy loss with logits.
     """
     def __init__(self, size_average=True, margin0=0, margin1=0, inverse=True,
-                       **kwargs):
-        super(BCELoss, self).__init__()
+                       class_balancer=None, **kwargs):
+        super().__init__()
         self.bce = F.binary_cross_entropy_with_logits
         self.size_average = size_average
         self.margin0 = float(np.clip(margin0, 0, 1))
         self.margin1 = float(np.clip(margin1, 0, 1))
         self.inverse = inverse
+        self.balancer = class_balancer
 
     def forward(self, input, target, mask):
         # Number of valid voxels
@@ -25,6 +26,10 @@ class BCELoss(nn.Module):
         if nmsk.item() == 0:
             loss = torch.tensor(0).type(torch.cuda.FloatTensor)
             return loss, nmsk
+
+        # Class balancing
+        if self.balancer is not None:
+            mask = self.balancer(target, mask)
 
         # Margin
         m0, m1 = self.margin0, self.margin1
@@ -52,13 +57,14 @@ class MSELoss(nn.Module):
     Mean squared error loss with (or without) logits.
     """
     def __init__(self, size_average=True, margin0=0, margin1=0, logits=True,
-                       **kwargs):
-        super(MSELoss, self).__init__()
+                       class_balancer=None, **kwargs):
+        super().__init__()
         self.mse = F.mse_loss
         self.size_average = size_average
         self.margin0 = float(np.clip(margin0, 0, 1))
         self.margin1 = float(np.clip(margin1, 0, 1))
         self.logits = logits
+        self.balancer = class_balancer
 
     def forward(self, input, target, mask):
         # Number of valid voxels
@@ -67,6 +73,10 @@ class MSELoss(nn.Module):
         if nmsk.item() == 0:
             loss = torch.tensor(0).type(torch.cuda.FloatTensor)
             return loss, nmsk
+
+        # Class balancing
+        if self.balancer is not None:
+            mask = self.balancer(target, mask)
 
         activ = torch.sigmoid(input) if self.logits else input
 

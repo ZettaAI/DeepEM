@@ -24,17 +24,18 @@ class EdgeSampler(object):
 
 
 class EdgeCRF(nn.Module):
-    def __init__(self, criterion, size_average=False, class_balancing=False):
+    def __init__(self, criterion, size_average=False, class_balancer=None):
         super(EdgeCRF, self).__init__()
         self.criterion = criterion
         self.size_average = size_average
-        self.balancing = class_balancing
+        self.class_balancer = class_balancer
 
     def forward(self, preds, targets, masks):
         assert len(preds) == len(targets) == len(masks)
         loss, nmsk = 0, 0
         for pred, target, mask in zip(preds, targets, masks):
-            mask = self.class_balancing(target, mask)
+            if self.class_balancer is not None:
+                mask = self.class_balancer(target, mask)
             l, n = self.criterion(pred, target, mask)
             loss += l
             nmsk += n
@@ -55,30 +56,30 @@ class EdgeCRF(nn.Module):
 
         return loss, nmsk
 
-    def class_balancing(self, target, mask):
-        if not self.balancing:
-            return mask
-        dtype = mask.type()
-        m_int = mask * torch.eq(target, 1).type(dtype)
-        m_ext = mask * torch.eq(target, 0).type(dtype)
-        n_int = m_int.sum().item()
-        n_ext = m_ext.sum().item()
-        if n_int > 0 and n_ext > 0:
-            m_int *= n_ext/(n_int + n_ext)
-            m_ext *= n_int/(n_int + n_ext)
-        return (m_int + m_ext).type(dtype)
+    # def class_balancing(self, target, mask):
+    #     if not self.balancing:
+    #         return mask
+    #     dtype = mask.type()
+    #     m_int = mask * torch.eq(target, 1).type(dtype)
+    #     m_ext = mask * torch.eq(target, 0).type(dtype)
+    #     n_int = m_int.sum().item()
+    #     n_ext = m_ext.sum().item()
+    #     if n_int > 0 and n_ext > 0:
+    #         m_int *= n_ext/(n_int + n_ext)
+    #         m_ext *= n_int/(n_int + n_ext)
+    #     return (m_int + m_ext).type(dtype)
 
 
 class AffinityLoss(nn.Module):
     def __init__(self, edges, criterion, size_average=False,
-                 class_balancing=False):
+                 class_balancer=None):
         super(AffinityLoss, self).__init__()
         self.sampler = EdgeSampler(edges)
         self.decoder = AffinityLoss.Decoder(edges)
         self.criterion = EdgeCRF(
             criterion,
             size_average=size_average,
-            class_balancing=class_balancing
+            class_balancer=class_balancer
         )
 
     def forward(self, preds, label, mask):

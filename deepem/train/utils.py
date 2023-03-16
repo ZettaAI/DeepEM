@@ -8,10 +8,18 @@ from torch.nn.parallel import data_parallel
 import deepem.loss as loss
 from deepem.train.data import Data
 from deepem.train.model import Model, AmpModel
+from deepem.loss.utils import BinaryWeightBalancer
 
 
 def get_criteria(opt):
     criteria = dict()
+
+    # Class balancing
+    balancer = BinaryWeightBalancer(
+        weight0=opt.class_weight0,
+        weight1=opt.class_weight1,
+    ) if opt.class_balancing else None
+
     for k in opt.out_spec:
         if k == 'affinity' or k == 'long_range':
             if k == 'affinity':
@@ -24,7 +32,7 @@ def get_criteria(opt):
             criteria[k] = loss.AffinityLoss(edges,
                 criterion=getattr(loss, opt.loss)(**params),
                 size_average=opt.size_average,
-                class_balancing=opt.class_balancing
+                class_balancer=balancer,
             )
         else:
             params = dict(opt.loss_params)
@@ -32,6 +40,7 @@ def get_criteria(opt):
                 params['margin0'] = 0
                 params['margin1'] = 0
                 params['inverse'] = False
+            params['class_balancer'] = balancer
             criteria[k] = getattr(loss, 'BCELoss')(**params)
     return criteria
 
