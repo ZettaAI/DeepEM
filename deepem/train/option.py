@@ -27,7 +27,6 @@ class Options(object):
         self.parser.add_argument('--zettaset_path', required=True)
         self.parser.add_argument('--zettaset_lookup', type=json.loads, default=None)
         self.parser.add_argument('--zettaset_padding', type=vec3, default=(0, 0, 0))
-        self.parser.add_argument('--zettaset_binarize', type=str, default=[], nargs='+')
 
         # file synchronization for spot/preemptible training
         self.parser.add_argument('--samwise_map', nargs='*', default=None)
@@ -245,6 +244,15 @@ class Options(object):
             'img':  ('image', 1),
         }
 
+        requires_binarize = [
+            "synapse",
+            "mitochondria",
+            "myelin",
+            "fold",
+            "glia",
+            "soma",
+        ]
+
         # Test training
         if opt.test:
             opt.eval_intv = 100
@@ -268,7 +276,7 @@ class Options(object):
             glia_mask=opt.glia_mask,
             zettaset_lookup=opt.zettaset_lookup,
             zettaset_padding=opt.zettaset_padding,
-            zettaset_binarize=opt.zettaset_binarize,
+            requires_binarize=requires_binarize,
         )
 
         # ONNX

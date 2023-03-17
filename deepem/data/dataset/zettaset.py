@@ -80,7 +80,7 @@ def load_sample(
         print(f"{name}: {dset[name].shape}")
 
         # Binarize
-        if name in zettaset_binarize:
+        if name in requires_binarize:
             dset[name] = (dset[name] > 0).astype('uint8')
 
         # Mask
