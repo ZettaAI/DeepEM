@@ -73,23 +73,55 @@ class WandbLogger:
 
         # Input
         key = "input"
-        logs = [wandb.Image(self.to_array(sample[key], cropsz), caption=key)]
+        if "assignment" in self.out_spec:
+            logs = [
+                wandb.Image(
+                    self.to_array(sample[key][0, 0:1, ...], cropsz), caption="image"
+                ),
+                wandb.Image(
+                    self.to_array(sample[key][0, 1:2, ...], cropsz), caption="synapse"
+                ),
+            ]
+        else:
+            logs = [wandb.Image(self.to_array(sample[key], cropsz), caption=key)]
 
         # Outputs
         for key in sorted(self.out_spec):
 
             # Prediction
-            arr = self.to_array(torch.sigmoid(preds[key]))
-            logs.append(wandb.Image(arr, caption=f"{key} prediciton"))
+            if key != "assignment":
+                arr = self.to_array(torch.sigmoid(preds[key]))
+                logs.append(wandb.Image(arr, caption=f"{key} prediction"))
+            else:
+                sigmoids = torch.sigmoid(preds[key][0, ...])
+                presyn = sigmoids[0:1, ...]
+                postsyn = sigmoids[1:2, ...]
+                logs.append(
+                    wandb.Image(self.to_array(presyn), caption="presyn prediction")
+                )
+                logs.append(
+                    wandb.Image(self.to_array(postsyn), caption="postsyn prediction")
+                )
 
             # Label
             if key in ["affinity", "long_range"]:
                 seg = sample[key][0,0,...].cpu().numpy().astype('uint32')
                 rgb = torch.from_numpy(py_utils.seg2rgb(seg))
                 arr = self.to_array(rgb)
+                logs.append(wandb.Image(arr, caption=f"{key} label"))
+            elif key == "assignment":
+                label = sample[key][0, ...]
+                presyn = label[0:1, ...]
+                postsyn = label[1:2, ...]
+                logs.append(
+                    wandb.Image(self.to_array(presyn), caption="presyn label")
+                )
+                logs.append(
+                    wandb.Image(self.to_array(postsyn), caption="postsyn label")
+                )
             else:
                 arr = self.to_array(sample[key])
-            logs.append(wandb.Image(arr, caption=f"{key} label"))
+                logs.append(wandb.Image(arr, caption=f"{key} label"))
 
             # Mask
             arr = self.to_array(sample[f"{key}_mask"])

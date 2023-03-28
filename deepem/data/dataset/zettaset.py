@@ -38,7 +38,7 @@ def load_sample(
     sample: Sample,
     zettaset_lookup: dict[str, str] | None = None,
     zettaset_padding: tuple[int, int, int] = (0, 0, 0),
-    zettaset_binarize: list[str] = [],
+    requires_binarize: list[str] = [],
     **kwargs
 ) -> dict[str, np.ndarray]:
     """Load image and labels from a Sample."""
@@ -105,6 +105,10 @@ def load_sample(
                 dset[f"{name}_mask"], widths, "constant", constant_values=0
             )
             print(f"{name}_mask padded to {dset[name + '_mask'].shape}")
+
+        if sample.has_extra(key):
+            print(f"{name} has extra data")
+            dset[name + "_extra"] = sample.extras.get(key)
 
     return dset
 

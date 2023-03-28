@@ -128,6 +128,8 @@ class Options(object):
         self.parser.add_argument('--glia_mask', action='store_true')
         self.parser.add_argument('--soma', type=float, default=0)  # Soma
         self.parser.add_argument('--img', type=float, default=0)  # Image
+        self.parser.add_argument('--asgn', type=float, default=0)  # Synapse assignment
+
 
         # Test training
         self.parser.add_argument('--test', action='store_true')
@@ -221,6 +223,9 @@ class Options(object):
             if any(diff > 0):
                 opt.crop = [o/float(f) for f,o in zip(opt.fov, opt.outputsz)]
 
+        if opt.asgn > 0:
+            opt.in_spec = dict(input=(2,) + opt.inputsz)
+
         # Tilt-series electron tomography
         opt.aug_params['tilt_series'] = (opt.tilt_series,
                                          opt.tilt_series_in,
@@ -242,6 +247,7 @@ class Options(object):
             'glia': ('glia', 1),
             'soma': ('soma', 1),
             'img':  ('image', 1),
+            'asgn': ('assignment', 2),
         }
 
         requires_binarize = [

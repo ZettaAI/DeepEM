@@ -55,7 +55,7 @@ class Model(nn.Sequential):
         super(Model, self).__init__()
 
         assert len(in_spec)==1, "model takes a single input"
-        in_channels = 1
+        in_channels = list(in_spec.values())[0][-4]
 
         self.add_module('in', InputBlock(in_channels, out_channels, io_kernel))
         self.add_module('core', core)
