@@ -80,6 +80,7 @@ class Options(object):
         # Model architecture
         self.parser.add_argument('--inputsz', type=vec3, default=None)
         self.parser.add_argument('--outputsz', type=vec3, default=None)
+        self.parser.add_argument('--conv_mode', type=str, default="same")
         self.parser.add_argument('--fov', type=vec3, default=(20,256,256))
         self.parser.add_argument('--depth', type=int, default=4)
         self.parser.add_argument('--width', type=int, default=None, nargs='+')
