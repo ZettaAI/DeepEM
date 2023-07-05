@@ -88,6 +88,7 @@ class Options(object):
 
         # Data augmentation
         self.parser.add_argument('--recompute', action='store_true')
+        self.parser.add_argument('--border', action='store_true')
         self.parser.add_argument('--flip', action='store_true')
         self.parser.add_argument('--grayscale', action='store_true')
         self.parser.add_argument('--warping', action='store_true')
@@ -184,7 +185,7 @@ class Options(object):
         opt.optim_params = {k: args[k] for k in optim_keys}
 
         # Data augmentation
-        aug_keys = ['recompute','flip','grayscale','warping','misalign',
+        aug_keys = ['recompute', 'border', 'flip','grayscale','warping','misalign',
                     'interp','missing','blur','box','mip','lost','random']
         opt.aug_params = {k: args[k] for k in aug_keys}
 
