@@ -15,6 +15,7 @@ COPY --from=intermediate /tmp/zettasets /tmp/zettasets
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential git \
+        libboost-all-dev \
         # gcloud cli (for samwise)
         curl apt-transport-https ca-certificates gnupg \
     && rm -rf /var/lib/apt/lists/* \
@@ -35,6 +36,7 @@ RUN apt-get update \
         cloud-volume task-queue tensorboardX imgaug wandb \
     # github packages
     && pip install --no-cache-dir \
+        git+https://github.com/seung-lab/DataTools \
         git+https://github.com/ZettaAI/DataProvider3 \
         git+https://github.com/ZettaAI/Augmentor \
         git+https://github.com/seung-lab/pytorch-emvision \
