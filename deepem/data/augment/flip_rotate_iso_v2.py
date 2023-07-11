@@ -8,11 +8,11 @@ def get_augmentation(is_train, recompute=False, border=False, **kwargs):
     if recompute:
         augs.append(Label())
 
-    # Flip & rotate
-    augs.append(FlipRotateIsotropic())
-
     # Create border
     if border:
         augs.append(Border())
+
+    # Flip & rotate
+    augs.append(FlipRotateIsotropic())
 
     return Compose(augs)
