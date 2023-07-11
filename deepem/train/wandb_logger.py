@@ -33,8 +33,10 @@ class WandbLogger:
         wandb.init(
             project="DeepEM",
             name=opt.exp_name,
+            resume="allow",
+            id=opt.exp_name,
         )
-        wandb.config.update(opt)
+        wandb.config.update(opt, allow_val_change=True)
 
     def __enter__(self) -> None:
         return self
