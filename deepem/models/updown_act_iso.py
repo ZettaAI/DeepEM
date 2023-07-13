@@ -66,14 +66,18 @@ class DownBlock(nn.Sequential):
 
 
 class UpBlock(nn.Module):
-    def __init__(self, out_spec, scale_factor=(1,2,2)):
+    def __init__(self, out_spec, scale_factor=(1,2,2), onnx=False):
         super(UpBlock, self).__init__()
-        for k, v in out_spec.items():
+        self.onnx = onnx
+        for k in out_spec.keys():
             self.add_module(k,
                     nn.Upsample(scale_factor=scale_factor, mode='trilinear'))
 
     def forward(self, x):
-        return {k: m(x[k]) for k, m in self.named_children()}
+        if self.onnx:
+            return tuple(m(x[i]) for i, (_, m) in enumerate(self.named_children()))
+        else:
+            return {k: m(x[k]) for k, m in self.named_children()}
 
 
 class Model(nn.Sequential):
@@ -91,6 +95,6 @@ class Model(nn.Sequential):
         self.add_module('in', InputBlock(in_channels, out_channels, io_kernel))
         self.add_module('core', core)
         self.add_module('out', OutputBlock(out_channels, out_spec, io_kernel, onnx=onnx))
-        self.add_module('up', UpBlock(out_spec, scale_factor=scale_factor))
+        self.add_module('up', UpBlock(out_spec, scale_factor=scale_factor, onnx=onnx))
         if crop is not None:
             self.add_module('crop', Crop(crop))
