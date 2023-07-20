@@ -8,6 +8,7 @@ import torch
 from torchvision.utils import make_grid
 from tensorboardX import SummaryWriter
 
+from deepem.loss.mean import vec2aff
 from deepem.utils import torch_utils, py_utils
 
 
@@ -20,6 +21,9 @@ class Logger(object):
         self.out_spec = dict(opt.out_spec)
         self.outputsz = opt.outputsz
         self.lr = opt.lr
+
+        # Metric learning
+        self.delta_d = opt.delta_d
 
         # Basic logging
         self.timestamp = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
@@ -109,7 +113,9 @@ class Logger(object):
 
         # Outputs
         for k in sorted(self.out_spec):
+
             if k == 'affinity':
+
                 # Prediction
                 tag = f"{phase}/images/{k}"
                 tensor = torch.sigmoid(preds[k][0,0:3,...]).cpu()
@@ -125,7 +131,31 @@ class Logger(object):
                 seg = sample[k][0,0,...].cpu().numpy().astype('uint32')
                 rgb = torch.from_numpy(py_utils.seg2rgb(seg))
                 self.log_image(tag, rgb, iter_num)
+
+            elif k == 'embedding':
+
+                vec = preds[k][0, ...]
+
+                # Metric graph
+                tag = f"{phase}/images/metric_graph"
+                aff = vec2aff(vec, delta_d=self.delta_d)
+                self.log_image(tag, aff.cpu(), iter_num)
+
+                # Embedding
+                tag = f"{phase}/images/{k}"
+                vec = preds[k][[0],...].cpu()  # 1, c, z, y, x
+                vec = torch_utils.vec2pca(vec)
+                vec = vec.select(0, 0)
+                self.log_image(tag, vec, iter_num)
+
+                # Target
+                tag = f"{phase}/labels/{k}"
+                seg = sample[k][0,0,...].cpu().numpy().astype('uint32')
+                rgb = torch.from_numpy(py_utils.seg2rgb(seg))
+                self.log_image(tag, rgb, iter_num)
+
             else:
+
                 # Prediction
                 tag = f"{phase}/images/{k}"
                 pred = torch.sigmoid(preds[k][0,...]).cpu()

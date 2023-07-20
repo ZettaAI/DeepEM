@@ -64,7 +64,7 @@ class Sampler(object):
             dp.add_dataset(self.build_dataset(key, data[key], spec))
         dp.set_augment(aug)
         dp.set_imgs(["input"])
-        dp.set_segs(["affinity", "long_range"])
+        dp.set_segs(["affinity", "long_range", "embedding"])
         prob = [prob[k] for k in keys] if prob is not None else prob
         dp.set_sampling_weights(p=prob)
         self.dataprovider = dp

@@ -34,6 +34,8 @@ def get_criteria(opt):
                 size_average=opt.size_average,
                 class_balancer=balancer,
             )
+        elif k == 'embedding':
+            criteria[k] = getattr(loss, opt.metric_loss)(**opt.metric_params)
         else:
             params = dict(opt.loss_params)
             if opt.default_aux:

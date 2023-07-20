@@ -67,6 +67,16 @@ class Options(object):
         self.parser.add_argument('--class_weight1', type=float, default=None)
         self.parser.add_argument('--default_aux', action='store_true')
 
+        # Mean-based loss
+        self.parser.add_argument('--metric_loss', default='MeanLoss')
+        self.parser.add_argument('--scale_init', type=float, default=1.0)
+        self.parser.add_argument('--alpha', type=float, default=1.0)
+        self.parser.add_argument('--beta', type=float, default=1.0)
+        self.parser.add_argument('--gamma', type=float, default=0.001)
+        self.parser.add_argument('--delta_v', type=float, default=0.0)
+        self.parser.add_argument('--delta_d', type=float, default=1.5)
+        self.parser.add_argument('--recompute_ext', action='store_true')
+
         # Optimizer
         self.parser.add_argument('--optim', default='Adam')
         self.parser.add_argument('--lr', type=float, default=0.001)
@@ -132,6 +142,10 @@ class Options(object):
         self.parser.add_argument('--soma', type=float, default=0)  # Soma
         self.parser.add_argument('--img', type=float, default=0)  # Image
 
+        # Metric learning
+        self.parser.add_argument('--vec', type=float, default=0)
+        self.parser.add_argument('--embed_dim', type=int, default=12)
+
         # Test training
         self.parser.add_argument('--test', action='store_true')
 
@@ -176,6 +190,16 @@ class Options(object):
         # Loss
         loss_keys = ['size_average','margin0','margin1','inverse']
         opt.loss_params = {k: args[k] for k in loss_keys}
+
+        # Metirc learning
+        assert opt.metric_loss in ['MeanLoss']
+        opt.metric_params = dict()
+        opt.metric_params['alpha'] = opt.alpha
+        opt.metric_params['beta'] = opt.beta
+        opt.metric_params['gamma'] = opt.gamma
+        opt.metric_params['delta_v'] = opt.delta_v
+        opt.metric_params['delta_d'] = opt.delta_d
+        opt.metric_params['recompute_ext'] = opt.recompute_ext
 
         # Optimizer
         if opt.optim == 'Adam':
@@ -245,6 +269,7 @@ class Options(object):
             'glia': ('glia', 1),
             'soma': ('soma', 1),
             'img':  ('image', 1),
+            'vec':  ('embedding', opt.embed_dim),
         }
 
         requires_binarize = [
