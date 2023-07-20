@@ -37,7 +37,13 @@ class Model(nn.Module):
         for k in self.out_spec:
             target = sample[k]
             mask = sample[k + '_mask']
-            loss, nmsk = self.criteria[k](preds[k], target, mask)
+            criterion = self.criteria[k]
+            if k == 'embedding':
+                splt_key = k + '_split'
+                splt = sample[splt_key] if splt_key in sample else None
+                loss, nmsk = criterion(preds[k], target, mask, splt=splt)
+            else:
+                loss, nmsk = criterion(preds[k], target, mask)
             # PyTorch 0.4.0-specific workaround
             losses[k] = loss.unsqueeze(0)
             nmasks[k] = nmsk.unsqueeze(0)

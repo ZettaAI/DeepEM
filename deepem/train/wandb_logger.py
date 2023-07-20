@@ -9,6 +9,7 @@ import torch
 from torchvision.utils import make_grid
 import wandb
 
+from deepem.loss.mean import vec2aff
 from deepem.utils import py_utils, torch_utils
 
 
@@ -21,6 +22,7 @@ class WandbLogger:
         self,
         opt: argparse.Namespace,
     ):
+        self.opt = opt
         self.in_spec = dict(opt.in_spec)
         self.out_spec = dict(opt.out_spec)
 
@@ -81,11 +83,22 @@ class WandbLogger:
         for key in sorted(self.out_spec):
 
             # Prediction
-            arr = self.to_array(torch.sigmoid(preds[key]))
+            if key in ["embedding"]:
+                # Metric graph
+                aff = vec2aff(preds[key], delta_d=self.opt.delta_d)
+                arr = self.to_array(aff)
+                logs.append(wandb.Image(arr, caption=f"{key} metric graph"))
+
+                # Embeddings
+                vec = preds[key][[0],...].cpu()
+                vec = torch_utils.vec2pca(vec)
+                arr = self.to_array(vec.select(0, 0))
+            else:
+                arr = self.to_array(torch.sigmoid(preds[key]))
             logs.append(wandb.Image(arr, caption=f"{key} prediciton"))
 
             # Label
-            if key in ["affinity", "long_range"]:
+            if key in ["affinity", "long_range", "embedding"]:
                 seg = sample[key][0,0,...].cpu().numpy().astype('uint32')
                 rgb = torch.from_numpy(py_utils.seg2rgb(seg))
                 arr = self.to_array(rgb)

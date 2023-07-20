@@ -58,3 +58,11 @@ def crop_center_no_strict(v, size):
         else:
             idx.append(slice(None))
     return v[idx]
+
+
+def vec2pca(v):
+    assert v.ndimension() == 5
+    vec = v.detach().cpu().numpy()
+    pca = py_utils.fit_pca(vec)
+    vec = py_utils.pca_scale_vec(vec, pca)
+    return torch.from_numpy(vec)
