@@ -5,3 +5,4 @@ task-queue
 tensorflow
 tensorboard
 tensorboardX
+git+https://github.com/seung-lab/DataTools.git
