@@ -1,4 +1,5 @@
 cloud-volume
+igneous-pipeline
 scikit-image
 scikit-learn
 task-queue
