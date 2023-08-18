@@ -127,5 +127,10 @@ def ingest(data, opt, tag=None):
     # Downsample
     if opt.downsample:
         with LocalTaskQueue(parallel=opt.parallel) as tq:
-            tasks = create_downsampling_tasks(gs_path, mip=0, fill_missing=True)
+            tasks = create_downsampling_tasks(
+                gs_path,
+                mip=0,
+                fill_missing=True,
+                factor=opt.downsample_factor,
+            )
             tq.insert_all(tasks)

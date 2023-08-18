@@ -94,6 +94,7 @@ class Options(object):
         self.parser.add_argument('--keywords', default=[], nargs='+')
         self.parser.add_argument('-p','--parallel', type=int, default=16)
         self.parser.add_argument('-d','--downsample', action='store_true')
+        self.parser.add_argument('--downsample_factor', type=vec3, default=(2,2,1))
         self.parser.add_argument('-r','--resolution', type=vec3, default=(4,4,40))
         self.parser.add_argument('-o','--offset', type=vec3, default=None)
         self.parser.add_argument('--chunk_size', type=vec3, default=(64,64,16))
