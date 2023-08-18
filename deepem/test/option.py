@@ -44,7 +44,14 @@ class Options(object):
         self.parser.add_argument('--tilt_series_in', type=int, default=12)
         self.parser.add_argument('--tilt_series_out', type=int, default=4)
         self.parser.add_argument('--tilt_series_crop', type=vec3, default=None)
-        
+
+        # Metric learning
+        self.parser.add_argument('--vec', type=int, default=0)
+        self.parser.add_argument('--vec_to', default=None)  # 'aff' or 'pca'
+        self.parser.add_argument('--edges', type=vec3, default=[(0,0,1),(0,1,0),(1,0,0)], nargs='+')
+        self.parser.add_argument('--delta_d', type=float, default=1.5)
+        self.parser.add_argument('--scale_init', type=float, default=1.0)
+
         # Multiclass detection
         self.parser.add_argument('--aff',  action='store_true')
         self.parser.add_argument('--long', type=int, default=0)
@@ -166,6 +173,8 @@ class Options(object):
             if any(diff > 0):
                 opt.crop = [o/float(f) for f,o in zip(opt.fov, opt.outputsz)]
 
+        if opt.vec:
+            opt.out_spec['embedding'] = (opt.vec,) + opt.outputsz
         if opt.aff:
             opt.out_spec['affinity'] = (3,) + opt.outputsz
         if opt.aff_deprecated:
@@ -196,6 +205,13 @@ class Options(object):
 
         # Scan spec
         opt.scan_spec = dict()
+        if opt.vec:
+            dim = opt.vec
+            if opt.vec_to == 'aff':
+                dim = len(opt.edges)
+            if opt.vec_to == 'pca':
+                dim = 3
+            opt.scan_spec['embedding'] = (dim,) + opt.outputsz
         if opt.aff:
             opt.scan_spec['affinity'] = (3,) + opt.outputsz
         if opt.aff_deprecated:
