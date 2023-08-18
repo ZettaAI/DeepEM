@@ -60,6 +60,10 @@ def export_onnx(
     onnx_opt.crop = None
     onnx_opt.blend = "bump"
 
+    # Dummy options for inference
+    onnx_opt.vec_to = "aff"
+    onnx_opt.edges = [(0, 0, 1), (0, 1, 0), (1, 0, 0)]
+
     # Prepare model
     onnx_model = load_model(onnx_opt)
     onnx_model, count = batchnorm3d_to_instancenorm3d(onnx_model)

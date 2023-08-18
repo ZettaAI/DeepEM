@@ -4,6 +4,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from deepem.loss.mean import vec2aff
 from deepem.utils import torch_utils
 from deepem.test.mask import PatchMask, AffinityMask
 
@@ -27,12 +28,20 @@ class Model(nn.Module):
         else:
             self.temperature = max(opt.temperature, 1.0)
 
+        # Metric learning
+        self.vec_to = opt.vec_to
+        self.edges = list(opt.edges)
+        self.delta_d = opt.delta_d
+
         # Precomputed mask
         self.mask = dict()
         if opt.blend == 'precomputed':
             for k, v in opt.scan_spec.items():
                 patch_sz = v[-3:]
-                if k == 'affinity':
+                if (k == 'embedding') and (opt.vec_to == 'aff'):
+                    edges = opt.edges
+                    mask = AffinityMask(patch_sz, opt.overlap, edges, opt.bump)
+                elif k == 'affinity':
                     edges = opt.mask_edges
                     mask = AffinityMask(patch_sz, opt.overlap, edges, opt.bump)
                 else:
@@ -46,10 +55,18 @@ class Model(nn.Module):
         preds = self.model(*inputs)
         outputs = dict()
         for k, x in preds.items():
-            if self.temperature is None:
-                outputs[k] = torch.sigmoid(x)
+            if k == 'embedding':
+                if self.vec_to == 'aff':
+                    outputs[k] = vec2aff(x, self.edges, self.delta_d)
+                elif self.vec_to == 'pca':
+                    outputs[k] = torch_utils.vec2pca(x)
+                else:
+                    outputs[k] = x
             else:
-                outputs[k] = torch.sigmoid(x/self.temperature)
+                if self.temperature is None:
+                    outputs[k] = torch.sigmoid(x)
+                else:
+                    outputs[k] = torch.sigmoid(x/self.temperature)
 
             # Narrowing
             output_channels = outputs[k].shape[-4]
