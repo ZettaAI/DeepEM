@@ -38,6 +38,7 @@ def load_sample(
     sample: Sample,
     zettaset_lookup: dict[str, str] | None = None,
     zettaset_padding: tuple[int, int, int] = (0, 0, 0),
+    zettaset_mask: bool = True,
     requires_binarize: list[str] = [],
     **kwargs
 ) -> dict[str, np.ndarray]:
@@ -84,7 +85,7 @@ def load_sample(
             dset[name] = (dset[name] > 0).astype('uint8')
 
         # Mask
-        if key in sample.masks:
+        if zettaset_mask and (key in sample.masks):
             vol = sample.read_mask(key)[key]
             dset[name + "_mask"] = convert_array(vol).astype('uint8')
         else:
