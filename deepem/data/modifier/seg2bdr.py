@@ -9,8 +9,8 @@ class Modifier:
         self.key = key
         self.create_border = create_border
 
-    def __call__(self, sample):
-        if self.key in sample:            
+    def __call__(self, sample, **kwargs):
+        if self.key in sample:
             raw = sample[self.key]
             if self.create_border:
                 seg = raw[0, 0, :, :, :].cpu().numpy().astype(np.uint32)

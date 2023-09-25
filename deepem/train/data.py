@@ -32,8 +32,7 @@ class Data(object):
 
     def __call__(self):
         sample = next(self.dataiter)
-        if self.is_train:
-            sample = self.modifier(sample)
+        sample = self.modifier(sample, is_train=self.is_train)
         for k in sample:
             is_input = k in self.inputs
             sample[k].requires_grad_(is_input)
