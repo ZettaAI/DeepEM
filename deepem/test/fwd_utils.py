@@ -11,12 +11,13 @@ class Flip(object):
             data:   4D numpy array to be transformed.
             rule:   Transform rule, specified as a Boolean array.
                     [z-flip, y-flip, x-flip, xy-transpose]
+                    [z-flip, y-flip, x-flip, xy-transpose, yz-transpose, zx-transpose]
 
         Returns:
             Transformed data.
         """
         data = py_utils.to_tensor(data)
-        assert np.size(rule)==4
+        assert len(rule) == 6
 
         # z-flip
         if rule[0]:
@@ -29,7 +30,13 @@ class Flip(object):
             data = np.flip(data, axis=-1)
         # xy-transpose
         if rule[3]:
-            data = data.transpose(0,1,3,2)
+            data = data.transpose(0, 1, 3, 2)
+        # yz-transpose
+        if rule[4]:
+            data = data.transpose(0, 2, 1, 3)
+        # zx-transpose
+        if rule[5]:
+            data = data.transpose(0, 3, 2, 1)
 
         # Prevent potential negative stride issues by copying.
         return np.copy(data)
@@ -39,23 +46,37 @@ flip = Flip()
 
 def revert_flip(data, rule, dst=None):
     data = py_utils.to_tensor(data)
-    assert np.size(rule)==4
+    assert len(rule) == 6
 
     # Special treat for affinity.
     is_affinity = dst is not None
     if is_affinity:
-        (dz,dy,dx) = dst
+        dz, dy, dx = dst
         assert data.shape[-4] >= 3
         assert dx and abs(dx) < data.shape[-1]
         assert dy and abs(dy) < data.shape[-2]
         assert dz and abs(dz) < data.shape[-3]
 
+    # zx-transpose
+    if rule[5]:
+        data = data.transpose(0, 3, 2, 1)
+        # Swap z/x-affinity maps.
+        if is_affinity:
+            data[[0, 2], ...] = data[[2, 0], ...]
+
+    # yz-transpose
+    if rule[4]:
+        data = data.transpose(0, 2, 1, 3)
+        # Swap y/z-affinity maps.
+        if is_affinity:
+            data[[1, 2], ...] = data[[2, 1], ...]
+
     # xy-transpose
     if rule[3]:
-        data = data.transpose(0,1,3,2)
+        data = data.transpose(0, 1, 3, 2)
         # Swap x/y-affinity maps.
         if is_affinity:
-            data[[0,1],...] = data[[1,0],...]
+            data[[0, 1], ...] = data[[1, 0], ...]
 
     # x-flip
     if rule[2]:
@@ -63,12 +84,12 @@ def revert_flip(data, rule, dst=None):
         # Special treatment for x-affinity.
         if is_affinity:
             if dx > 0:
-                data[0,:,:,dx:] = data[0,:,:,:-dx]
-                data[0,:,:,:dx].fill(0)
+                data[0, :, :, dx:] = data[0, :, :, :-dx]
+                data[0, :, :, :dx].fill(0)
             else:
                 dx = abs(dx)
-                data[0,:,:,:-dx] = data[0,:,:,dx:]
-                data[0,:,:,-dx:].fill(0)
+                data[0, :, :, :-dx] = data[0, :, :, dx:]
+                data[0, :, :, -dx:].fill(0)
 
     # y-flip
     if rule[1]:
@@ -76,12 +97,12 @@ def revert_flip(data, rule, dst=None):
         # Special treatment for y-affinity.
         if is_affinity:
             if dy > 0:
-                data[1,:,dy:,:] = data[1,:,:-dy,:]
-                data[1,:,:dy,:].fill(0)
+                data[1, :, dy:, :] = data[1, :, :-dy, :]
+                data[1, :, :dy, :].fill(0)
             else:
                 dy = abs(dy)
-                data[1,:,:-dy,:] = data[1,:,dy:,:]
-                data[1,:,-dy:,:].fill(0)
+                data[1, :, :-dy, :] = data[1, :, dy:, :]
+                data[1, :, -dy:, :].fill(0)
 
     # z-flip
     if rule[0]:
@@ -89,11 +110,11 @@ def revert_flip(data, rule, dst=None):
         # Special treatment for z-affinity.
         if is_affinity:
             if dz > 0:
-                data[2,dz:,:,:] = data[2,:-dz,:,:]
-                data[2,:dz,:,:].fill(0)
+                data[2, dz:, :, :] = data[2, :-dz, :, :]
+                data[2, :dz, :, :].fill(0)
             else:
                 dz = abs(dz)
-                data[2,:-dz,:,:] = data[2,dz:,:,:]
-                data[2,-dz:,:,:].fill(0)
+                data[2, :-dz, :, :] = data[2, dz:, :, :]
+                data[2, -dz:, :, :].fill(0)
 
     return data

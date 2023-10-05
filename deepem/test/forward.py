@@ -39,8 +39,10 @@ class Forward(object):
 
             count = 0.0
             for aug in self.test_aug:
+                assert aug < 64
+
                 # dec2bin
-                rule = np.array([int(x) for x in bin(aug)[2:].zfill(4)])
+                rule = np.array([int(x) for x in bin(aug)[2:].zfill(6)][::-1])
                 print(f"Test-time augmentation {rule}")
 
                 # Augment dataset.
@@ -58,7 +60,7 @@ class Forward(object):
                     output = outputs.get_data(k)
 
                     # Revert output.
-                    dst = (1,1,1) if k == 'affinity' else None
+                    dst = (1, 1, 1) if k == 'affinity' else None
                     reverted = fwd_utils.revert_flip(output, rule=rule, dst=dst)
                     v._data += reverted
 
