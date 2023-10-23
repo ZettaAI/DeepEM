@@ -38,6 +38,11 @@ if __name__ == "__main__":
         default=['0'], 
         nargs='+')
     parser.add_argument(
+        '--key_val',
+        type=json.loads,
+        default=None,
+        help='extra key-value pairs to substitute')
+    parser.add_argument(
         '--params', 
         type=str,
         required=True,
@@ -53,7 +58,7 @@ if __name__ == "__main__":
 
     # Run inference
     p = len(opts.gpu_ids)
-    tasks = (SingleRunTask(opts, opts.params.format(**b, iter=opts.iter, gpu_id=opts.gpu_ids[i % p])) for i, b in enumerate(batch))
+    tasks = (SingleRunTask(opts, opts.params.format(**b, **opts.key_val, iter=opts.iter, gpu_id=opts.gpu_ids[i % p])) for i, b in enumerate(batch))
     with LocalTaskQueue(parallel=p) as tq:
         tq.insert_all(tasks)
 
