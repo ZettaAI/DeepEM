@@ -34,7 +34,7 @@ class Options(object):
         self.parser.add_argument('--samwise_period', type=int, default=600)        
 
         # cuDNN auto-tuning
-        self.parser.add_argument('--no_autotune', action='store_false')
+        self.parser.add_argument('--no_autotune', action='store_true')
 
         # Training/validation sets
         self.parser.add_argument('--train_ids', type=str, default=[], nargs='+')
