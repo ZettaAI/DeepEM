@@ -34,7 +34,7 @@ def compute_affinity(
     """Compute an affinity map from a pair of embeddings."""
     norm = torch.norm(embd1 - embd2, p=1, dim=dim, keepdim=keepdims)
     margin = (2 * delta_d - norm) / (2 * delta_d)
-    zero = torch.zeros(1).to(embd1.device, dtype=embd1.dtype)
+    zero = torch.zeros(1, dtype=embd1.dtype, device=embd1.device)
     result = torch.max(zero, margin) ** 2
     return result
 
@@ -100,6 +100,8 @@ class MeanLoss(nn.Module):
         :param mask: Segmentation mask
         :param splt: Connected components of the target segmentation
         """
+        device = embd.device
+
         groups = None
         if self.recompute_ext:
             assert splt is not None
@@ -116,18 +118,19 @@ class MeanLoss(nn.Module):
         ids = np.unique(trgt.cpu().numpy())
         ids = ids[ids != 0].tolist()
 
-        mext = self.compute_ext_matrix(ids, groups, self.recompute_ext)
+        # Recompute external matrix
+        mext = self.compute_ext_matrix(ids, groups, self.recompute_ext, device)
         vecs = self.generate_vecs(embd, trgt, ids)
         means = [torch.mean(vec, dim=0) for vec in vecs]
-        weights = [1.0] * len(means)
+        weights = [1.0] * len(vecs)
 
         # Dummy nmsk
-        nmsk = torch.tensor([1]).to(embd.device, dtype=torch.float)
+        nmsk = torch.tensor([1]).to(device, dtype=torch.float)
 
         # Compute loss
-        loss_int = self.compute_loss_int(vecs, means, weights, embd.device)
-        loss_ext = self.compute_loss_ext(means, weights, mext, embd.device)
-        loss_nrm = self.compute_loss_nrm(means, embd.device)
+        loss_int = self.compute_loss_int(vecs, means, weights, device)
+        loss_ext = self.compute_loss_ext(means, weights, mext, device)
+        loss_nrm = self.compute_loss_nrm(means, device)
 
         loss = (self.alpha * loss_int) + (self.beta * loss_ext) + (self.gamma * loss_nrm)
         return loss, nmsk
@@ -141,13 +144,13 @@ class MeanLoss(nn.Module):
     ) -> torch.Tensor:
         """Compute the internal term of the loss."""
         assert len(vecs) == len(means) == len(weights)
-        zero = lambda: torch.zeros(1).to(device).squeeze()
+        zero = lambda: torch.zeros(1, dtype=torch.float, device=device).squeeze()
         loss = zero()
         for vec, mean, weight in zip(vecs, means, weights):
             margin = torch.norm(vec - mean, p=1, dim=1) - self.delta_v
             loss += weight * torch.mean(torch.max(margin, zero()) ** 2)
-        result = loss / max(1.0, len(vecs))
-        return result
+        loss /= max(1.0, len(vecs))
+        return loss
 
     def compute_loss_ext(
         self,
@@ -158,26 +161,26 @@ class MeanLoss(nn.Module):
     ) -> torch.Tensor:
         """Compute the external term of the loss."""
         assert len(means) == len(weights)
-        zero = lambda: torch.zeros(1).to(device).squeeze()
+        zero = lambda: torch.zeros(1, dtype=torch.float, device=device).squeeze()
         loss = zero()
         count = len(means)
         if (count > 1) and (mext is not None):
-            means1 = torch.stack(means).unsqueeze(0)  # 1 x N x Dim
-            means2 = torch.stack(means).unsqueeze(1)  # N x 1 x Dim
+            means0 = torch.stack(means)
+            means1 = means0.unsqueeze(0)  # 1 x N x Dim
+            means2 = means0.unsqueeze(1)  # N x 1 x Dim
             margin = 2 * self.delta_d - torch.norm(means2 - means1, p=1, dim=2)
-            margin = margin[mext]
+            margin = margin[mext.to(device)]
             loss = torch.sum(torch.max(margin, zero()) ** 2)
-        result = loss / max(1.0, count * (count - 1))
-        return result
+            loss /= max(1.0, count * (count - 1.0))  # Normalize
+        return loss
 
     def compute_loss_nrm(self, means: list[torch.Tensor], device: torch.device) -> torch.Tensor:
         """Compute the regularization term of the loss."""
-        zero = lambda: torch.zeros(1).to(device).squeeze()
+        zero = lambda: torch.zeros(1, dtype=torch.float, device=device).squeeze()
         loss = zero()
         if len(means) > 0:
-            loss += torch.mean(torch.norm(torch.stack(means), p=1, dim=1))
-        result = loss
-        return result
+            loss = torch.mean(torch.norm(torch.stack(means), p=1, dim=1))
+        return loss
 
     def generate_vecs(
         self,
@@ -190,7 +193,7 @@ class MeanLoss(nn.Module):
         """
         result = []
         for obj_id in ids:
-            obj = torch.nonzero(trgt == obj_id)
+            obj = torch.nonzero(trgt == int(obj_id))
             z, y, x = obj[:, -3], obj[:, -2], obj[:, -1]
             vec = embd[0, :, z, y, x].transpose(0, 1)  # Count x Dim
             result.append(vec)
@@ -201,27 +204,30 @@ class MeanLoss(nn.Module):
         ids: Sequence[int],
         groups: Sequence[Sequence[int]] | None = None,
         recompute_ext: bool = False,
+        device: torch.device | None = None,
     ) -> torch.Tensor | None:
         """
         Compute a matrix that indicates the presence of 'external' interaction
         between objects.
         """
         num_ids = len(ids)
-        mext = torch.ones((num_ids, num_ids)) - torch.eye(num_ids)
 
         # Recompute external matrix
         if recompute_ext:
             assert groups is not None
+            mext_np = np.ones((num_ids, num_ids)) - np.eye(num_ids)
             idmap = {x: i for i, x in enumerate(ids)}
             for group in groups:
                 for i, id_i in enumerate(group):
                     for id_j in group[i + 1 :]:
-                        mext[idmap[id_i], idmap[id_j]] = 0
-                        mext[idmap[id_j], idmap[id_i]] = 0
+                        mext_np[idmap[id_i], idmap[id_j]] = 0
+                        mext_np[idmap[id_j], idmap[id_i]] = 0
+            mext = torch.from_numpy(mext_np).to(device, dtype=torch.bool)
+        else:
+            mext = ~torch.eye(num_ids, dtype=torch.bool, device=device)
 
         # Safeguard
-        if mext.sum().item() == 0:
+        if mext.sum() == 0:
             return None
 
-        result = mext.to(torch.bool)
-        return result
+        return mext
