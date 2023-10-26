@@ -22,6 +22,7 @@ class Options(object):
         self.parser.add_argument('--sampler',  required=True)
         self.parser.add_argument('--augment',  default=None)
         self.parser.add_argument('--modifier', default=None)
+        self.parser.add_argument('--modifier_kwargs', type=json.loads, default={})
 
         # zettasets
         self.parser.add_argument('--zettaset_path', required=True)

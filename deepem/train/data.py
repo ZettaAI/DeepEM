@@ -58,7 +58,7 @@ class Data(object):
         # Sample modifier
         if opt.modifier:
             mod = imp.load_source('modifier', opt.modifier)
-            self.modifier = mod.Modifier()
+            self.modifier = mod.Modifier(**opt.modifier_kwargs)
         else:
             def default_modifier(x, **kwargs):
                 return x

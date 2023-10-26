@@ -5,7 +5,7 @@ import datatools
 
 
 class Modifier:
-    def __init__(self, key: str = "boundary", create_border: bool = True):
+    def __init__(self, key: str = "boundary", create_border: bool = False, **kwargs):
         self.key = key
         self.create_border = create_border
 
