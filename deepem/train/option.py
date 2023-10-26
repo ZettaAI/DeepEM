@@ -101,7 +101,7 @@ class Options(object):
 
         # Data augmentation
         self.parser.add_argument('--recompute', action='store_true')
-        self.parser.add_argument('--border', action='store_true')
+        self.parser.add_argument('--border', type=str, default=[], nargs='+')
         self.parser.add_argument('--flip', action='store_true')
         self.parser.add_argument('--grayscale', action='store_true')
         self.parser.add_argument('--warping', action='store_true')
