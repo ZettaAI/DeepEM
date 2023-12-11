@@ -9,7 +9,7 @@ from zettasets.sample import Sample
 
 
 def load_data(
-    zettaset_path: str,
+    zettaset_paths: list[str],
     data_ids: list[str] | None = None,
     **kwargs
 ) -> dict[str, dict[str, np.ndarray]]:
@@ -17,18 +17,23 @@ def load_data(
     if data_ids is None:
         return {}
 
-    # Load a zettaset.
-    assert zettaset_path.startswith("gs://")
-    motivation = "Load a zettaset from DeepEM"
-    zettaset = Zettaset(zettaset_path, motivation)
+    # Load zettasets.
+    zettasets = []
+    for zettaset_path in zettaset_paths:
+        assert zettaset_path.startswith("gs://")
+        motivation = "Load a zettaset from DeepEM"
+        print(f"Zettaset [{zettaset_path}]")
+        zettasets.append(Zettaset(zettaset_path, motivation))
 
     # Load data from a zettaset.
     data = {}
     for data_id in data_ids:
-        if data_id in zettaset.sample_names:
-            print(f"Sample [{data_id}]")
-            data[data_id] = load_sample(zettaset.samples[data_id], **kwargs)
-        else:
+        for zettaset in zettasets:
+            if data_id in zettaset.sample_names:
+                print(f"Sample [{data_id}]")
+                data[data_id] = load_sample(zettaset.samples[data_id], **kwargs)
+                break
+        if data_id not in data:
             raise KeyError(f"Invalid data id:{data_id}")
 
     return data
