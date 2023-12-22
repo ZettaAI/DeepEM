@@ -4,7 +4,7 @@ import os
 import numpy as np
 import samwise
 
-from deepem.utils.py_utils import vec3
+from deepem.utils.py_utils import vec3, vec3f
 
 
 class Options(object):
@@ -26,8 +26,11 @@ class Options(object):
 
         # zettasets
         self.parser.add_argument('--zettaset_path', type=str, default=[], nargs='+')
+        self.parser.add_argument('--zettaset_specs', type=json.loads, default={})
         self.parser.add_argument('--zettaset_lookup', type=json.loads, default=None)
         self.parser.add_argument('--zettaset_padding', type=vec3, default=(0, 0, 0))
+        self.parser.add_argument('--zettaset_padding_spec', type=json.loads, default={})
+        self.parser.add_argument('--zettaset_resolution', type=vec3f, default=None)
         self.parser.add_argument('--zettaset_no_mask', action='store_true')
 
         # file synchronization for spot/preemptible training
@@ -309,6 +312,8 @@ class Options(object):
             glia_mask=opt.glia_mask,
             zettaset_lookup=opt.zettaset_lookup,
             zettaset_padding=opt.zettaset_padding,
+            zettaset_padding_spec=opt.zettaset_padding_spec,
+            zettaset_resolution=opt.zettaset_resolution,
             zettaset_mask=not opt.zettaset_no_mask,
             requires_binarize=requires_binarize,
         )
