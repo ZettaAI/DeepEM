@@ -25,7 +25,7 @@ class Options(object):
         self.parser.add_argument('--modifier_kwargs', type=json.loads, default={})
 
         # zettasets
-        self.parser.add_argument('--zettaset_path', required=True, type=str, default=[], nargs='+')
+        self.parser.add_argument('--zettaset_path', type=str, default=[], nargs='+')
         self.parser.add_argument('--zettaset_lookup', type=json.loads, default=None)
         self.parser.add_argument('--zettaset_padding', type=vec3, default=(0, 0, 0))
         self.parser.add_argument('--zettaset_no_mask', action='store_true')
