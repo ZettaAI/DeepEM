@@ -18,7 +18,6 @@ class Options(object):
     def initialize(self):
         self.parser.add_argument('--exp_name', required=True)
         self.parser.add_argument('--model',    required=True)
-        self.parser.add_argument('--data',     required=True)
         self.parser.add_argument('--sampler',  required=True)
         self.parser.add_argument('--augment',  default=None)
         self.parser.add_argument('--modifier', default=None)

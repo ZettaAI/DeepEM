@@ -118,10 +118,13 @@ def save_chkpt(model, fpath, chkpt_num, optimizer):
 
 
 def load_data(opt):
-    mod = imp.load_source('data', opt.data)
     data_ids = list(set().union(opt.train_ids, opt.val_ids))
+    if opt.zettaset_specs:
+        from deepem.data.dataset import multi_zettaset as mod
+    else:
+        from deepem.data.dataset import zettaset as mod
     data = mod.load_data(
-        opt.zettaset_path,
+        opt.zettaset_specs if opt.zettaset_specs else opt.zettaset_path,
         data_ids=data_ids,
         **opt.data_params
     )
