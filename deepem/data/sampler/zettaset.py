@@ -29,7 +29,7 @@ class Sampler(object):
         spec: dict[str, tuple[int, int, int]],
         is_train: bool,
         aug: Augment | None = None,
-        prob: dict[str, float] | None = None
+        prob: dict[str, float] | None = None,
     ):
         self.is_train = is_train
         self.build(data, spec, aug, prob)
@@ -55,8 +55,8 @@ class Sampler(object):
         self,
         data: dict[str, dict[str, np.ndarray]],
         spec: dict[str, tuple[int, int, int]],
-        aug: Augment | None,
-        prob: dict[str, float] | None
+        aug: Augment | None = None,
+        prob: dict[str, float] | None = None,
     ) -> None:
         dp = DataProvider(spec)
         keys = data.keys()
@@ -74,7 +74,7 @@ class Sampler(object):
         self,
         tag: str,
         data: dict[str, np.ndarray],
-        spec: dict[str, tuple[int, int, int]]
+        spec: dict[str, tuple[int, int, int]],
     ) -> Dataset:
         """Create a Dataset."""
         dset = Dataset(tag=tag)
