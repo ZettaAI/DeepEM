@@ -16,11 +16,13 @@ class Logger(object):
     def __init__(self, opt):
         self.monitor = {'train': Logger.Monitor(), 'test': Logger.Monitor()}
         self.log_dir = opt.log_dir
-        self.writer = SummaryWriter(opt.log_dir)
         self.in_spec = dict(opt.in_spec)
         self.out_spec = dict(opt.out_spec)
         self.outputsz = opt.outputsz
         self.lr = opt.lr
+
+        # TensorBoard logging
+        self.writer = SummaryWriter(opt.log_dir) if opt.tensorboard else None
 
         # Metric learning
         self.delta_d = opt.delta_d
@@ -61,8 +63,9 @@ class Logger(object):
         return stats
 
     def log(self, phase, iter_num, stats):
-        for k, v in stats.items():
-            self.writer.add_scalar(f"{phase}/{k}", v, iter_num)
+        if self.writer:
+            for k, v in stats.items():
+                self.writer.add_scalar(f"{phase}/{k}", v, iter_num)
 
     def display(self, phase, iter_num, stats):
         disp = "[%s] Iter: %8d, " % (phase, iter_num)
@@ -93,6 +96,9 @@ class Logger(object):
             return ret
 
     def log_images(self, phase, iter_num, preds, sample):
+        if self.writer is None:
+            return
+
         # Peep output size
         key = sorted(self.out_spec)[0]
         cropsz = sample[key].shape[-3:]
@@ -172,11 +178,12 @@ class Logger(object):
                 self.log_image(tag, target, iter_num)
 
     def log_image(self, tag, tensor, iter_num):
-        assert(torch.is_tensor(tensor))
-        depth = tensor.shape[-3]
-        imgs = [tensor[:,z,:,:] for z in range(depth)]
-        img = make_grid(imgs, nrow=depth, padding=0)
-        self.writer.add_image(tag, img, iter_num)
+        if self.writer:
+            assert(torch.is_tensor(tensor))
+            depth = tensor.shape[-3]
+            imgs = [tensor[:,z,:,:] for z in range(depth)]
+            img = make_grid(imgs, nrow=depth, padding=0)
+            self.writer.add_image(tag, img, iter_num)
 
     def log_params(self, params):
         fname = os.path.join(self.log_dir, f"{self.timestamp}_params.csv")

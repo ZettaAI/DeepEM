@@ -42,8 +42,11 @@ def train(opt):
             # Load training samples.
             sample = train_loader()
 
+            # Zero out gradients
+            for param in model.parameters():
+                param.grad = None
+
             # Optimizer step
-            optimizer.zero_grad()
             if opt.mixed_precision:
                 with torch.cuda.amp.autocast():
                     losses, nmasks, preds = forward(model, sample, opt)

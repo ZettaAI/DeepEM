@@ -1,7 +1,7 @@
 from augmentor import *
 
 
-def get_augmentation(is_train, recompute=False, border=False, **kwargs):
+def get_augmentation(is_train, recompute=False, border=[], **kwargs):
     augs = list()
 
     # Recompute connected components
@@ -10,7 +10,7 @@ def get_augmentation(is_train, recompute=False, border=False, **kwargs):
 
     # Create border
     if border:
-        augs.append(Border())
+        augs.append(Border(targets=border))
 
     # Flip & rotate
     augs.append(FlipRotateIsotropic())

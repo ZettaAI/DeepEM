@@ -22,6 +22,7 @@ class Options(object):
         self.parser.add_argument('--sampler',  required=True)
         self.parser.add_argument('--augment',  default=None)
         self.parser.add_argument('--modifier', default=None)
+        self.parser.add_argument('--modifier_kwargs', type=json.loads, default={})
 
         # zettasets
         self.parser.add_argument('--zettaset_path', required=True, type=str, default=[], nargs='+')
@@ -34,7 +35,7 @@ class Options(object):
         self.parser.add_argument('--samwise_period', type=int, default=600)        
 
         # cuDNN auto-tuning
-        self.parser.add_argument('--no_autotune', action='store_false')
+        self.parser.add_argument('--no_autotune', action='store_true')
 
         # Training/validation sets
         self.parser.add_argument('--train_ids', type=str, default=[], nargs='+')
@@ -101,7 +102,7 @@ class Options(object):
 
         # Data augmentation
         self.parser.add_argument('--recompute', action='store_true')
-        self.parser.add_argument('--border', action='store_true')
+        self.parser.add_argument('--border', type=str, default=[], nargs='+')
         self.parser.add_argument('--flip', action='store_true')
         self.parser.add_argument('--grayscale', action='store_true')
         self.parser.add_argument('--warping', action='store_true')
@@ -156,6 +157,9 @@ class Options(object):
         # Export to ONNX
         self.parser.add_argument('--export_onnx', action='store_true')
         self.parser.add_argument('--opset_version', type=int, default=10)
+
+        # TensorBoard logging
+        self.parser.add_argument('--tensorboard', action='store_true')
 
         self.initialized = True
 

@@ -56,10 +56,13 @@ class Data(object):
         sampler = mod.Sampler(data, spec, is_train, aug, prob=prob)
 
         # Sample modifier
-        self.modifier = lambda x: x
-        if opt.modifier is not None:
+        if opt.modifier:
             mod = imp.load_source('modifier', opt.modifier)
-            self.modifier = mod.Modifier()
+            self.modifier = mod.Modifier(**opt.modifier_kwargs)
+        else:
+            def default_modifier(x, **kwargs):
+                return x
+            self.modifier = default_modifier
 
         # Data loader
         size = (opt.max_iter - opt.chkpt_num) * opt.batch_size
