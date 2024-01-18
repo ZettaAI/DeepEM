@@ -289,6 +289,9 @@ class Options(object):
             "soma",
         ]
 
+        if opt.blv_num_channels == 1:
+            requires_binarize.append("blood_vessel")
+
         # Test training
         if opt.test:
             opt.eval_intv = 100
