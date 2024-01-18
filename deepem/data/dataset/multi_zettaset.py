@@ -132,6 +132,7 @@ def load_sample(
     zettaset_lookup: dict[str, str] | None = None,
     zettaset_resolution: tuple[int, int, int] | None = None,
     requires_binarize: list[str] = [],
+    zettaset_share_mask: str | None = None,
     **kwargs
 ) -> dict[str, np.ndarray]:
     """Load image and labels from a Sample."""
@@ -164,6 +165,16 @@ def load_sample(
     # Assumes that zettaset's annotation names follow DeepEM's convention.
     zettaset_lookup = zettaset_lookup or {x: x for x in sample.annotation_names}
 
+    # Shared mask
+    shared_mask = None
+    if (not no_mask) and zettaset_share_mask:
+        key = zettaset_share_mask
+        mask_key = f"{zettaset_share_mask}_mask"
+        if key not in sample.masks:
+            raise KeyError(f"Mask '{mask_key}' not found.")
+        mask_vol = sample.read_mask(key)[key]
+        shared_mask = convert_array(mask_vol).astype("uint8")
+
     # Process annotations
     for name, key in zettaset_lookup.items():
 
@@ -178,7 +189,9 @@ def load_sample(
 
         # Mask
         mask_key = f"{name}_mask"
-        if (not no_mask) and (key in sample.masks):
+        if shared_mask is not None:
+            dset[mask_key] = shared_mask
+        elif (not no_mask) and (key in sample.masks):
             mask_vol = sample.read_mask(key)[key]
             dset[mask_key] = convert_array(mask_vol).astype("uint8")
         else:

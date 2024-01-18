@@ -32,6 +32,7 @@ class Options(object):
         self.parser.add_argument('--zettaset_padding_spec', type=json.loads, default={})
         self.parser.add_argument('--zettaset_resolution', type=vec3f, default=None)
         self.parser.add_argument('--zettaset_no_mask', action='store_true')
+        self.parser.add_argument('--zettaset_share_mask', type=str, default=None)
 
         # file synchronization for spot/preemptible training
         self.parser.add_argument('--samwise_map', nargs='*', default=None)
@@ -319,6 +320,7 @@ class Options(object):
             zettaset_resolution=opt.zettaset_resolution,
             zettaset_mask=not opt.zettaset_no_mask,
             requires_binarize=requires_binarize,
+            zettaset_share_mask=opt.zettaset_share_mask,
         )
 
         # ONNX
