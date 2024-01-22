@@ -190,7 +190,12 @@ class Options(object):
         if (not opt.train_ids) or (not opt.val_ids):
             raise ValueError("Train/validation IDs unspecified")
         if opt.train_prob:
-            assert len(opt.train_ids) == len(opt.train_prob)
+            if len(opt.train_ids) != len(opt.train_prob):
+                error_message = (
+                    "The lengths of 'train_ids' and 'train_prob' must be the same. "
+                    f"train_ids: {opt.train_ids}, train_prob: {opt.train_prob}"
+                )
+                raise ValueError(error_message)
         if opt.val_prob:
             assert len(opt.val_ids) == len(opt.val_prob)
 
