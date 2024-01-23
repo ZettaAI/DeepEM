@@ -1,8 +1,17 @@
 from augmentor import *
 
 
-def get_augmentation(is_train, box=None, missing=7, blur=7, lost=True,
-                     random=False, **kwargs):
+def get_augmentation(
+    is_train,
+    box=None,
+    missing=7,
+    blur=7,
+    lost=True,
+    random=False,
+    recompute=False,
+    border=False,
+    **kwargs
+):
     augs = list()
 
     # Box
@@ -72,7 +81,15 @@ def get_augmentation(is_train, box=None, missing=7, blur=7, lost=True,
     if is_train:
         augs.append(Warp(skip=0.3, do_twist=False, rot_max=45.0, scale_max=1.1))
 
+    # Recompute connected components
+    if recompute:
+        augs.append(Label())
+
     # Flip & rotate
     augs.append(FlipRotate())
+
+    # Create border
+    if border:
+        augs.append(Border())
 
     return Compose(augs)
