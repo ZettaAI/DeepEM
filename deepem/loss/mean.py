@@ -77,6 +77,7 @@ class MeanLoss(nn.Module):
         delta_v: float = 0.0,
         delta_d: float = 1.5,
         recompute_ext: bool = False,
+        mask_background: bool = True,
         **kwargs,
     ):
         super().__init__()
@@ -86,6 +87,7 @@ class MeanLoss(nn.Module):
         self.delta_v = delta_v  # Variance (intra-cluster pull force) hinge
         self.delta_d = delta_d  # Distance (inter-cluster push force) hinge
         self.recompute_ext = recompute_ext
+        self.mask_background = mask_background
 
     def forward(
         self,
@@ -114,9 +116,15 @@ class MeanLoss(nn.Module):
         trgt = trgt.to(torch.int)
         trgt *= (mask > 0).to(torch.int)
 
-        # Unique nonzero IDs
+        # Extract unique IDs
         ids = np.unique(trgt.cpu().numpy())
-        ids = ids[ids != 0].tolist()
+
+        # Remove 0s from the IDs if `mask_background` is True
+        if self.mask_background:
+            ids = ids[ids != 0]
+
+        # Convert numpy array to a Python list
+        ids = ids.tolist()
 
         # Recompute external matrix
         mext = self.compute_ext_matrix(ids, groups, self.recompute_ext, device)

@@ -82,6 +82,7 @@ class Options(object):
         self.parser.add_argument('--delta_v', type=float, default=0.0)
         self.parser.add_argument('--delta_d', type=float, default=1.5)
         self.parser.add_argument('--recompute_ext', action='store_true')
+        self.parser.add_argument('--no_mask_background', action='store_true')
 
         # Optimizer
         self.parser.add_argument('--optim', default='Adam')
@@ -214,6 +215,7 @@ class Options(object):
         opt.metric_params['delta_v'] = opt.delta_v
         opt.metric_params['delta_d'] = opt.delta_d
         opt.metric_params['recompute_ext'] = opt.recompute_ext
+        opt.metric_params['mask_background'] = not opt.no_mask_background
 
         # Optimizer
         if opt.optim == 'Adam':
