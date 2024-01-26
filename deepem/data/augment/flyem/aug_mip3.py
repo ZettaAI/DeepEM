@@ -27,11 +27,11 @@ def get_augmentation(is_train, box=None, missing=7, blur=7, lost=True,
     # (2) Misalignment + missing section
     if is_train:
         mutex.append(Blend([
-            MisalignPlusMissing((1,4), value=0, random=random),
-            MisalignPlusMissing((1,4), value=0, random=False)
+            MisalignPlusMissing((3,5), value=0, random=random),
+            MisalignPlusMissing((3,5), value=0, random=False)
         ]))
     else:
-        mutex.append(MisalignPlusMissing((1,4), value=0, random=False))
+        mutex.append(MisalignPlusMissing((3,5), value=0, random=False))
 
     # (3) Missing section
     if missing > 0:
