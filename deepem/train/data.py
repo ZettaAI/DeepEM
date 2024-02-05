@@ -52,7 +52,7 @@ class Data(object):
 
         # Data sampler
         mod = imp.load_source('sampler', opt.sampler)
-        spec = mod.get_spec(opt.in_spec, opt.out_spec)
+        spec = mod.get_spec(opt.in_spec, opt.out_spec, opt.extra_spec)
         zspecs = opt.zettaset_specs
         sampler = mod.Sampler(data, spec, is_train, aug, prob, zspecs)
 

@@ -123,6 +123,7 @@ class Options(object):
         self.parser.add_argument('--noise_min', type=float, default=0.01)
         self.parser.add_argument('--noise_max', type=float, default=0.1)
         self.parser.add_argument('--noise_per_channel', action='store_true')
+        self.parser.add_argument('--myelin', action='store_true')
 
         # Tilt-series electron tomography
         self.parser.add_argument('--tilt_series', type=int, default=0)
@@ -228,7 +229,7 @@ class Options(object):
 
         # Data augmentation
         aug_keys = ['recompute', 'border', 'flip','grayscale','warping','misalign',
-                    'interp','missing','blur','box','mip','lost','random']
+                    'interp','missing','blur','box','mip','lost','random', 'myelin']
         opt.aug_params = {k: args[k] for k in aug_keys}
 
         # Noise
@@ -243,6 +244,9 @@ class Options(object):
         opt.in_spec = dict(input=(1,) + opt.inputsz)
         opt.out_spec = dict()
         opt.loss_weight = dict()
+
+        # Myelin augmentation
+        opt.extra_spec = dict(myelin_aug=(1,) + opt.inputsz) if opt.myelin else None
 
         # Output cropping
         opt.crop = None

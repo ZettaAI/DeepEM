@@ -10,6 +10,7 @@ def get_augmentation(
     random=False,
     recompute=False,
     border=False,
+    myelin=False,
     **kwargs
 ):
     augs = list()
@@ -33,6 +34,16 @@ def get_augmentation(
             contrast_factor=0.5,
             brightness_factor=0.5,
             prob=1, skip=0.3))
+
+    # Myelin
+    if is_train and myelin:
+        augs.append(
+            Myelin(
+                contrast_factor=2.0,
+                brightness_factor=2.0,
+                skip=0.3,
+            )
+        )
 
     # Missing section & misalignment
     to_blend = list()

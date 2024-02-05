@@ -9,6 +9,7 @@ from dataprovider3 import DataProvider, Dataset, DataSuperset
 def get_spec(
     in_spec: dict[str, tuple[int, ...]],
     out_spec: dict[str, tuple[int, ...]],
+    extra_spec: dict[str, tuple[int, ...]] | None = None,
 ) -> dict[str, tuple[int, int, int]]:
     spec = dict()
     # Input spec
@@ -19,6 +20,10 @@ def get_spec(
         dim = tuple(v[-3:])
         spec[k] = dim
         spec[k+'_mask'] = dim
+    # Extra spec
+    if extra_spec:
+        for k, v in extra_spec.items():
+            spec[k] = tuple(v[-3:])
     return spec
 
 

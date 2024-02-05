@@ -8,9 +8,9 @@ RUN apt-get --allow-releaseinfo-change update && \
     git clone https://${GIT_ACCESS_TOKEN}@github.com/ZettaAI/zettasets.git && \
     rm -rf /var/lib/apt/lists/*
 
-# FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-runtime
+FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-runtime
 # FROM pytorch/pytorch:1.2-cuda10.0-cudnn7-runtime
-FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+# FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
 # FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -42,7 +42,7 @@ RUN apt-get update \
     && pip install --no-cache-dir \
         git+https://github.com/seung-lab/DataTools \
         git+https://github.com/ZettaAI/DataProvider3 \
-        git+https://github.com/ZettaAI/Augmentor \
+        git+https://github.com/ZettaAI/Augmentor@myelin-aug \
         git+https://github.com/seung-lab/pytorch-emvision \
         git+https://github.com/ZettaAI/samwise
 
