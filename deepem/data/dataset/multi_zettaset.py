@@ -116,7 +116,7 @@ def _process_sample(
     zettaset_spec = zettaset_specs[zettaset_name]
 
     # Determine padding: sample-specific overrides zettaset-specific
-    padding = zettaset_padding_spec.get(data_id, zettaset_spec.get("padding", zettaset_padding))
+    padding = tuple(zettaset_padding_spec.get(data_id, zettaset_spec.get("padding", zettaset_padding)))
     no_mask = zettaset_spec.get("no_mask", not zettaset_mask)
 
     # Determine resolution: zettaset-specific overrides zettaset_resolution
