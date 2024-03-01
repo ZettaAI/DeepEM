@@ -38,6 +38,9 @@ RUN apt-get update \
     # pypi packages
     && pip install --no-cache-dir --upgrade \
         numpy cloud-volume task-queue tensorboardX imgaug wandb \
+    # address cloud-files import issue
+    && pip install --no-cache-dir --upgrade \
+        cffi brotli \
     # github packages
     && pip install --no-cache-dir \
         git+https://github.com/seung-lab/DataTools \
