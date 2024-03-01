@@ -62,8 +62,10 @@ def _initialize_zettasets(
         if "path" not in spec or not spec["path"].startswith("gs://"):
             raise ValueError(f"Invalid zettaset specification for '{name}': missing or invalid 'path'.")
         zettaset_path = spec["path"]
-        print(f"Zettaset {name} [{zettaset_path}]")
-        zettasets[name] = Zettaset(zettaset_path, "", zettaset_resolution)
+        print(f"Zettaset `{name}` from [{zettaset_path}]")
+        resolution = tuple(spec.get("resolution", zettaset_resolution))
+        print(f"{resolution=}")
+        zettasets[name] = Zettaset(zettaset_path, "", resolution)
     return zettasets
 
 
@@ -94,6 +96,7 @@ def _process_sample(
     zettaset_padding: tuple[int, int, int] = (0, 0, 0),
     zettaset_padding_spec: dict[str, tuple[int, int, int]] = {},
     zettaset_mask: bool = True,
+    zettaset_resolution: tuple[int, int, int] | None = None,
     **kwargs,
 ) -> dict[str, dict[str, np.ndarray]]:
     if not is_valid_format(data_id):
@@ -116,11 +119,15 @@ def _process_sample(
     padding = zettaset_padding_spec.get(data_id, zettaset_spec.get("padding", zettaset_padding))
     no_mask = zettaset_spec.get("no_mask", not zettaset_mask)
 
+    # Determine resolution: zettaset-specific overrides zettaset_resolution
+    resolution = tuple(zettaset_spec.get("resolution", zettaset_resolution))
+
     print(f"Sample [{data_id}]")
     return {data_id: load_sample(
         zettaset.samples[sample_name],
         padding,
         no_mask,
+        resolution,
         **kwargs,
     )}
 
@@ -129,8 +136,8 @@ def load_sample(
     sample: Sample,
     padding: tuple[int, int, int] = (0, 0, 0),
     no_mask: bool = False,
+    resolution: tuple[int, int, int] | None = None,
     zettaset_lookup: dict[str, str] | None = None,
-    zettaset_resolution: tuple[int, int, int] | None = None,
     requires_binarize: list[str] = [],
     zettaset_share_mask: str | None = None,
     **kwargs
@@ -143,7 +150,7 @@ def load_sample(
     dset: dict[str, np.ndarray] = {}
 
     # Bbox with padding
-    resolution = zettaset_resolution or sample.base_resolution
+    resolution = resolution or sample.base_resolution
     bbox = sample.bbox * (sample.base_resolution / np.array(resolution))
     xyz_padding = (
         tuple(reversed(padding))
