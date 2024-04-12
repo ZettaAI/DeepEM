@@ -11,7 +11,6 @@ def get_augmentation(
     recompute=False,
     box=None,
     blur=7,
-    random=False,
     border=[],
     **kwargs,
 ):
@@ -28,14 +27,6 @@ def get_augmentation(
             skip=0.3,
         )
     )
-    # augs.append(
-    #     MixedGrayscale2D(
-    #         contrast_factor=0.5,
-    #         brightness_factor=0.5,
-    #         prob=1,
-    #         skip=0.3,
-    #     )
-    # )
 
     # Box
     if is_train:
@@ -71,15 +62,15 @@ def get_augmentation(
     if is_train:
         augs.append(Warp(skip=0.3, do_twist=False, rot_max=45.0, scale_max=1.1))
 
-    # Recompute connected components
-    if recompute:
-        augs.append(Label())
-
     # Flip & rotate
     augs.append(FlipRotateIsotropic())
 
     # Create border
     if border:
         augs.append(Border(targets=border))
+
+    # Recompute connected components
+    if recompute:
+        augs.append(Label())
 
     return Compose(augs)
