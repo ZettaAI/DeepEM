@@ -114,10 +114,9 @@ class MeanLoss(nn.Module):
             trgt = splt
 
         trgt = trgt.to(torch.int)
-        trgt *= (mask > 0).to(torch.int)
 
         # Extract unique IDs
-        ids = np.unique(trgt.cpu().numpy())
+        ids = np.unique(trgt[mask > 0].cpu().numpy())
 
         # Remove 0s from the IDs if `mask_background` is True
         if self.mask_background:
@@ -128,7 +127,7 @@ class MeanLoss(nn.Module):
 
         # Recompute external matrix
         mext = self.compute_ext_matrix(ids, groups, self.recompute_ext, device)
-        vecs = self.generate_vecs(embd, trgt, ids)
+        vecs = self.generate_vecs(embd, trgt, mask, ids)
         means = [torch.mean(vec, dim=0) for vec in vecs]
         weights = [1.0] * len(vecs)
 
@@ -194,17 +193,29 @@ class MeanLoss(nn.Module):
         self,
         embd: torch.Tensor,
         trgt: torch.Tensor,
+        mask: torch.Tensor,
         ids: Sequence[int],
     ) -> list[torch.Tensor]:
         """
         Generate a list of vectorized embeddings for each ground truth object.
         """
+        if self.mask_background and 0 in ids:
+            raise ValueError("ID '0' is not allowed when mask_background is enabled.")
+
+        mask_bool = mask.bool() if not self.mask_background else None
         result = []
+
         for obj_id in ids:
-            obj = torch.nonzero(trgt == int(obj_id))
-            z, y, x = obj[:, -3], obj[:, -2], obj[:, -1]
-            vec = embd[0, :, z, y, x].transpose(0, 1)  # Count x Dim
+            obj_mask = (trgt == int(obj_id)) & mask_bool if mask_bool is not None else (trgt == int(obj_id))
+            idx = torch.nonzero(obj_mask, as_tuple=True)
+
+            if idx[0].numel() == 0:
+                # If there are no indices for this ID, skip to the next one
+                continue
+
+            vec = embd[0, :, idx[-3], idx[-2], idx[-1]].transpose(0, 1)  # Count x Dim
             result.append(vec)
+
         return result
 
     def compute_ext_matrix(
