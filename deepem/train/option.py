@@ -104,6 +104,7 @@ class Options(object):
         self.parser.add_argument('--width', type=int, default=None, nargs='+')
         self.parser.add_argument('--group', type=int, default=0)
         self.parser.add_argument('--act', default='ReLU')
+        self.parser.add_argument('--updown_scale_factor', type=vec3f, default=None)
 
         # Data augmentation
         self.parser.add_argument('--recompute', action='store_true')
