@@ -1,4 +1,5 @@
 import argparse
+from collections import OrderedDict
 import json
 import math
 import os
@@ -64,10 +65,19 @@ class Options(object):
         self.parser.add_argument('--mye',  action='store_true')
         self.parser.add_argument('--mye_thresh', type=float, default=0.5)
         self.parser.add_argument('--blv',  action='store_true')
-        self.parser.add_argument('--blv_num_channels', type=int, default=2)
-        self.parser.add_argument('--glia',  action='store_true')
+        self.parser.add_argument('--blv_num_channels', type=int, default=1)
+        self.parser.add_argument('--glia', action='store_true')
         self.parser.add_argument('--sem',  action='store_true')
         self.parser.add_argument('--img',  action='store_true')
+
+        # Semantic segmentation
+        self.parser.add_argument('--semantic', action='store_true')
+        self.parser.add_argument('--dend', action='store_true')  # Dendrite
+        self.parser.add_argument('--axon', action='store_true')  # Axon
+        self.parser.add_argument('--soma', action='store_true')  # Soma
+        self.parser.add_argument('--nucl', action='store_true')  # Nucleus
+        self.parser.add_argument('--ecs',  action='store_true')  # Extracellular space
+        self.parser.add_argument('--other', action='store_true') # Other class
 
         # Test-time augmentation
         self.parser.add_argument('--test_aug', type=int, default=None, nargs='+')
@@ -204,6 +214,35 @@ class Options(object):
             opt.out_spec['bvessel'] = (1,) + opt.outputsz
         if opt.img:
             opt.out_spec['image'] = (1,) + opt.outputsz
+        if opt.dend:
+            opt.out_spec['dendrite'] = (1,) + opt.outputsz
+        if opt.axon:
+            opt.out_spec['axon'] = (1,) + opt.outputsz
+        if opt.soma:
+            opt.out_spec['soma'] = (1,) + opt.outputsz
+        if opt.nucl:
+            opt.out_spec['nucleus'] = (1,) + opt.outputsz
+        if opt.ecs:
+            opt.out_spec['extracellular_space'] = (1,) + opt.outputsz
+        if opt.other:
+            opt.out_spec['other_class'] = (1,) + opt.outputsz
+
+        # Semantic segmentation
+        if opt.semantic:
+            required_keys = ['soma', 'axon', 'dendrite', 'glia', 'blood_vessel']
+
+            # Ensure all required keys are present in the opt.out_spec
+            assert all(key in opt.out_spec for key in required_keys)
+
+            # Use OrderedDict to maintain order of required keys followed by other keys
+            out_spec_new = OrderedDict((key, opt.out_spec[key]) for key in required_keys)
+
+            # Add remaining keys to out_spec_new
+            out_spec_new.update((key, opt.out_spec[key]) for key in opt.out_spec if key not in required_keys)
+
+            # Convert back to standard dict if necessary
+            opt.out_spec = dict(out_spec_new)
+
         assert(len(opt.out_spec) > 0)
 
         # Scan spec
@@ -241,6 +280,34 @@ class Options(object):
             opt.scan_spec['bvessel'] = (1,) + opt.outputsz
         if opt.img:
             opt.scan_spec['image'] = (1,) + opt.outputsz
+        if opt.dend:
+            opt.scan_spec['dendrite'] = (1,) + opt.outputsz
+        if opt.axon:
+            opt.scan_spec['axon'] = (1,) + opt.outputsz
+        if opt.soma:
+            opt.scan_spec['soma'] = (1,) + opt.outputsz
+        if opt.nucl:
+            opt.scan_spec['nucleus'] = (1,) + opt.outputsz
+        if opt.ecs:
+            opt.scan_spec['extracellular_space'] = (1,) + opt.outputsz
+        if opt.other:
+            opt.scan_spec['other_class'] = (1,) + opt.outputsz
+
+        # Semantic segmentation
+        if opt.semantic:
+            required_keys = ['soma', 'axon', 'dendrite', 'glia', 'blood_vessel']
+
+            # Ensure all required keys are present in the opt.scan_spec
+            assert all(key in opt.scan_spec for key in required_keys)
+
+            # Use OrderedDict to maintain order of required keys followed by other keys
+            scan_spec_new = OrderedDict((key, opt.scan_spec[key]) for key in required_keys)
+
+            # Add remaining keys to scan_spec_new
+            scan_spec_new.update((key, opt.scan_spec[key]) for key in opt.scan_spec if key not in required_keys)
+
+            # Convert back to standard dict if necessary
+            opt.scan_spec = dict(scan_spec_new)
 
         # Test-time augmentation
         if opt.test_aug16:

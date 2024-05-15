@@ -140,6 +140,7 @@ def load_sample(
     zettaset_lookup: dict[str, str] | None = None,
     requires_binarize: list[str] = [],
     zettaset_share_mask: str | None = None,
+    semantic_mapping: dict[str, int] = {},
     **kwargs
 ) -> dict[str, np.ndarray]:
     """Load image and labels from a Sample."""
@@ -190,8 +191,10 @@ def load_sample(
         dset[name] = convert_array(vol)
         anno_log = f"\t{name}: {dset[name].shape}"
 
-        # Binarize
-        if name in requires_binarize:
+        # Semantic mapping or binarize
+        if name in semantic_mapping:
+            dset[name] = (dset[name] == semantic_mapping[name]).astype("uint8")
+        elif name in requires_binarize:
             dset[name] = (dset[name] > 0).astype("uint8")
 
         # Mask

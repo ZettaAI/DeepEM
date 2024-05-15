@@ -144,11 +144,19 @@ class Options(object):
         self.parser.add_argument('--mye', type=float, default=0)  # Myelin
         self.parser.add_argument('--fld', type=float, default=0)  # Fold
         self.parser.add_argument('--blv', type=float, default=0)  # Blood vessel
-        self.parser.add_argument('--blv_num_channels', type=int, default=2)
-        self.parser.add_argument('--glia', type=float, default=0)  # Glia
+        self.parser.add_argument('--blv_num_channels', type=int, default=1)
+        self.parser.add_argument('--glia', type=float, default=0) # Glia
         self.parser.add_argument('--glia_mask', action='store_true')
-        self.parser.add_argument('--soma', type=float, default=0)  # Soma
         self.parser.add_argument('--img', type=float, default=0)  # Image
+
+        # Semantic segmentation
+        self.parser.add_argument('--sem', action='store_true')
+        self.parser.add_argument('--dend', type=float, default=0)  # Dendrite
+        self.parser.add_argument('--axon', type=float, default=0)  # Axon
+        self.parser.add_argument('--soma', type=float, default=0)  # Soma
+        self.parser.add_argument('--nucl', type=float, default=0)  # Nucleus
+        self.parser.add_argument('--ecs',  type=float, default=0)  # Extracellular space
+        self.parser.add_argument('--other', type=float, default=0) # Other class
 
         # Metric learning
         self.parser.add_argument('--vec', type=float, default=0)
@@ -287,6 +295,22 @@ class Options(object):
             'soma': ('soma', 1),
             'img':  ('image', 1),
             'vec':  ('embedding', opt.embed_dim),
+            'dend': ('dendrite', 1),
+            'axon': ('axon', 1),
+            'nucl': ('nucleus', 1),
+            'ecs':  ('extracellular_space', 1),
+            'other':  ('other_class', 1),
+        }
+
+        semantic_mapping = {
+            'dendrite': 1,
+            'axon': 2,
+            'soma': 3,
+            'nucleus': 4,
+            'glia': 5,
+            'extracellular_space': 6,
+            'blood_vessel': 7,
+            'other_class': 10,
         }
 
         requires_binarize = [
@@ -300,6 +324,9 @@ class Options(object):
 
         if opt.blv_num_channels == 1:
             requires_binarize.append("blood_vessel")
+
+        if opt.sem:
+            requires_binarize = [x for x in requires_binarize if x not in semantic_mapping]
 
         # Test training
         if opt.test:
@@ -329,6 +356,7 @@ class Options(object):
             zettaset_mask=not opt.zettaset_no_mask,
             requires_binarize=requires_binarize,
             zettaset_share_mask=opt.zettaset_share_mask,
+            semantic_mapping=semantic_mapping if opt.sem else {},
         )
 
         # ONNX
