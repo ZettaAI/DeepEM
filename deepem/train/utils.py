@@ -20,6 +20,8 @@ def get_criteria(opt):
         weight1=opt.class_weight1,
     ) if opt.class_balancing else None
 
+    is_dynamic = (opt.class_weight0 is None) and (opt.class_weight1 is None)
+
     for k in opt.out_spec:
         if k == 'affinity' or k == 'long_range':
             if k == 'affinity':
@@ -42,7 +44,14 @@ def get_criteria(opt):
                 params['margin0'] = 0
                 params['margin1'] = 0
                 params['inverse'] = False
-            params['class_balancer'] = balancer
+            params['class_balancer'] = (
+                balancer
+                if is_dynamic
+                else BinaryWeightBalancer(
+                    weight0=opt.class_weight1,
+                    weight1=opt.class_weight0,
+                )
+            )
             criteria[k] = getattr(loss, 'BCELoss')(**params)
     return criteria
 
