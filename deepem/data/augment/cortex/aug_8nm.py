@@ -90,6 +90,6 @@ def get_augmentation(
 
     # Recompute connected components
     if recompute:
-        augs.append(Label())
+        augs.append(Label(targets=recompute))
 
     return Compose(augs)

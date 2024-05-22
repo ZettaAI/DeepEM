@@ -107,7 +107,7 @@ class Options(object):
         self.parser.add_argument('--updown_scale_factor', type=vec3f, default=None)
 
         # Data augmentation
-        self.parser.add_argument('--recompute', action='store_true')
+        self.parser.add_argument('--recompute', type=str, default=[], nargs='+')
         self.parser.add_argument('--border', type=str, default=[], nargs='+')
         self.parser.add_argument('--flip', action='store_true')
         self.parser.add_argument('--grayscale', action='store_true')
