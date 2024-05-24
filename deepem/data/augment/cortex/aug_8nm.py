@@ -10,6 +10,8 @@ def get_augmentation(
     random=False,
     recompute=False,
     border=[],
+    section_gap=0,
+    mask_section_gap=False,
     **kwargs
 ):
     augs = list()
@@ -91,5 +93,9 @@ def get_augmentation(
     # Recompute connected components
     if recompute:
         augs.append(Label(targets=recompute))
+
+    # Section gap
+    if section_gap > 0:
+        augs.append(SectionGap(num_secs=section_gap, masked=mask_section_gap))
 
     return Compose(augs)

@@ -10,7 +10,6 @@ def get_augmentation(
     random=False,
     recompute=False,
     border=[],
-    section_gap=0,
     mask_section_gap=False,
     **kwargs
 ):
@@ -95,7 +94,12 @@ def get_augmentation(
         augs.append(Label(targets=recompute))
 
     # Section gap
-    if section_gap > 0:
-        augs.append(SectionGap(num_secs=section_gap, masked=mask_section_gap))
+    augs.append(
+        Blend([
+            SectionGap(num_secs=3, masked=mask_section_gap),
+            SectionGap(num_secs=4, masked=mask_section_gap),
+            SectionGap(num_secs=5, masked=mask_section_gap),
+        ])
+    )
 
     return Compose(augs)
