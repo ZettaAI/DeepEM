@@ -12,7 +12,7 @@ RUN apt-get --allow-releaseinfo-change update && \
 # FROM pytorch/pytorch:1.2-cuda10.0-cudnn7-runtime
 FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
 # FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
-ARG DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 COPY --from=intermediate /tmp/zettasets /tmp/zettasets
 
@@ -22,7 +22,6 @@ RUN apt-get update \
         libboost-all-dev \
         # gcloud cli (for samwise)
         curl apt-transport-https ca-certificates gnupg \
-    && rm -rf /var/lib/apt/lists/* \
     # gcloud cli (for samwise)
     && echo "deb https://packages.cloud.google.com/apt cloud-sdk main" \
         | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
@@ -31,6 +30,8 @@ RUN apt-get update \
     && apt-get update && apt-get install google-cloud-cli -y \
     # handle imgaug issue
     && apt-get install ffmpeg libsm6 libxext6 -y \
+    # Cleanup
+    && rm -rf /var/lib/apt/lists/* \
     # python requirements
     && conda install h5py cython matplotlib \
         scikit-image scikit-learn \
