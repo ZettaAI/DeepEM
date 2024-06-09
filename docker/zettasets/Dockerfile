@@ -41,8 +41,8 @@ RUN apt-get update \
     # github packages
     && pip install --no-cache-dir \
         git+https://github.com/seung-lab/DataTools \
-        git+https://github.com/ZettaAI/DataProvider3 \
-        git+https://github.com/ZettaAI/Augmentor \
+        git+https://github.com/seung-lab/DataProvider3 \
+        git+https://github.com/seung-lab/Augmentor \
         git+https://github.com/seung-lab/pytorch-emvision \
         git+https://github.com/ZettaAI/samwise
 
