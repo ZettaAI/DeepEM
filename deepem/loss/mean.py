@@ -107,23 +107,19 @@ class MeanLoss(nn.Module):
         groups = None
         if self.recompute_ext:
             assert splt is not None
-            trgt_np = np.squeeze(trgt.cpu().numpy())
-            splt_np = np.squeeze(splt.cpu().numpy())
-            mask_np = np.squeeze(mask.cpu().numpy())
-            groups = create_mapping(trgt_np, splt_np, mask_np)
+            trgt = torch.squeeze(trgt)
+            splt = torch.squeeze(splt)
+            mask = torch.squeeze(mask)
+            groups = create_mapping(trgt.cpu().numpy(), splt.cpu().numpy(), mask.cpu().numpy())
             trgt = splt
 
         trgt = trgt.to(torch.int)
 
-        # Extract unique IDs
-        ids = np.unique(trgt[mask > 0].cpu().numpy())
-
-        # Remove 0s from the IDs if `mask_background` is True
+        # Filter out background and get unique IDs
+        masked_trgt = trgt[mask > 0]
         if self.mask_background:
-            ids = ids[ids != 0]
-
-        # Convert numpy array to a Python list
-        ids = ids.tolist()
+            masked_trgt = masked_trgt[masked_trgt != 0]
+        ids = torch.unique(masked_trgt).tolist()
 
         # Recompute external matrix
         mext = self.compute_ext_matrix(ids, groups, self.recompute_ext, device)
