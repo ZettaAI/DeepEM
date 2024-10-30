@@ -39,7 +39,8 @@ def train(opt):
     train_loader, val_loader = load_data(opt)
 
     # Initial checkpoint
-    save_chkpt(model, opt.model_dir, opt.chkpt_num, optimizer)
+    if dist.get_rank() == 0:
+        save_chkpt(model, opt.model_dir, opt.chkpt_num, optimizer)
 
     # Mixed-precision training
     if opt.mixed_precision:
@@ -100,9 +101,10 @@ def train(opt):
 
             # Model checkpoint
             if (i+1) % opt.chkpt_intv == 0:
-                save_chkpt(model, opt.model_dir, i+1, optimizer)
-                if opt.export_onnx:
-                    export_onnx(opt, i+1)
+                if dist.get_rank() == 0:
+                    save_chkpt(model, opt.model_dir, i+1, optimizer)
+                    if opt.export_onnx:
+                        export_onnx(opt, i+1)
 
             # Reset timer.
             t0 = time.time()
@@ -156,12 +158,13 @@ if __name__ == "__main__":
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(opt.gpu_ids)
 
     # Make directories.
-    if not os.path.isdir(opt.exp_dir):
-        os.makedirs(opt.exp_dir)
-    if not os.path.isdir(opt.log_dir):
-        os.makedirs(opt.log_dir)
-    if not os.path.isdir(opt.model_dir):
-        os.makedirs(opt.model_dir)
+    if dist.get_rank() == 0:
+        if not os.path.isdir(opt.exp_dir):
+            os.makedirs(opt.exp_dir)
+        if not os.path.isdir(opt.log_dir):
+            os.makedirs(opt.log_dir)
+        if not os.path.isdir(opt.model_dir):
+            os.makedirs(opt.model_dir)
 
     # cuDNN auto-tuning
     torch.backends.cudnn.benchmark = not opt.no_autotune
