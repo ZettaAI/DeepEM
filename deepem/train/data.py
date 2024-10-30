@@ -28,8 +28,8 @@ class Dataset(torch.utils.data.Dataset):
 
 
 class Data(object):
-    def __init__(self, opt, data, is_train=True, prob=None):
-        self.build(opt, data, is_train, prob)
+    def __init__(self, opt, data, is_train=True, prob=None, local_rank=None):
+        self.build(opt, data, is_train, prob, local_rank)
 
     def __call__(self):
         sample = next(self.dataiter)
@@ -37,13 +37,13 @@ class Data(object):
         for k in sample:
             is_input = k in self.inputs
             sample[k].requires_grad_(is_input)
-            sample[k] = sample[k].cuda(non_blocking=(not is_input))
+            sample[k] = sample[k].cuda(device=self.local_rank, non_blocking=(not is_input))
         return sample
 
     def requires_grad(self, key):
         return self.is_train and (key in self.inputs)
 
-    def build(self, opt, data, is_train, prob):
+    def build(self, opt, data, is_train, prob, local_rank):
         # Data augmentation
         if opt.augment:
             mod = load_module('augment', opt.augment)
@@ -79,3 +79,4 @@ class Data(object):
         self.dataiter = iter(dataloader)
         self.inputs = opt.in_spec.keys()
         self.is_train = is_train
+        self.local_rank = local_rank
