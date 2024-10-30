@@ -53,8 +53,8 @@ class Model(nn.Module):
             nmasks[k] = nmsk.unsqueeze(0)
         return losses, nmasks
 
-    def state_dict(self):
-        return self.model.state_dict()
+    def state_dict(self, destination={}, prefix="", keep_vars=False):
+        return self.model.state_dict(destination, prefix, keep_vars)
 
     def save(self, fpath):
         torch.save(self.model.state_dict(), fpath)
