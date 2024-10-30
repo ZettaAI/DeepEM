@@ -36,7 +36,7 @@ def train(opt):
     optimizer = load_optimizer(opt, trainable)
 
     # Data loaders
-    train_loader, val_loader = load_data(opt)
+    train_loader, val_loader = load_data(opt, local_rank)
 
     # Initial checkpoint
     if dist.get_rank() == 0:

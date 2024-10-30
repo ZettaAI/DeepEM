@@ -133,7 +133,7 @@ def save_chkpt(model, fpath, chkpt_num, optimizer):
     torch.save(state, fname)
 
 
-def load_data(opt):
+def load_data(opt, local_rank):
     data_ids = list(set().union(opt.train_ids, opt.val_ids))
     if opt.zettaset_specs:
         from deepem.data.dataset import multi_zettaset as mod
@@ -151,7 +151,7 @@ def load_data(opt):
         prob = dict(zip(opt.train_ids, opt.train_prob))
     else:
         prob = None
-    train_loader = Data(opt, train_data, is_train=True, prob=prob)
+    train_loader = Data(opt, train_data, is_train=True, prob=prob, local_rank=local_rank)
 
     # Validation
     val_data = {k: data[k] for k in opt.val_ids}
@@ -159,7 +159,7 @@ def load_data(opt):
         prob = dict(zip(opt.val_ids, opt.val_prob))
     else:
         prob = None
-    val_loader = Data(opt, val_data, is_train=False, prob=prob)
+    val_loader = Data(opt, val_data, is_train=False, prob=prob, local_rank=local_rank)
 
     return train_loader, val_loader
 
