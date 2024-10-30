@@ -6,6 +6,7 @@ from types import TracebackType
 
 import numpy as np
 import torch
+import torch.distributed as dist
 from torchvision.utils import make_grid
 import wandb
 
@@ -22,6 +23,8 @@ class WandbLogger:
         self,
         opt: argparse.Namespace,
     ):
+        if dist.get_rank() > 0:
+            return
         self.opt = opt
         self.in_spec = dict(opt.in_spec)
         self.out_spec = dict(opt.out_spec)
@@ -57,6 +60,8 @@ class WandbLogger:
         iter_num: int,
         stats: dict[str, float],
     ) -> None:
+        if dist.get_rank() > 0:
+            return
         wandb.log(
             {f"{phase}/{metric}": value for metric, value in stats.items()},
             step=iter_num
@@ -69,6 +74,8 @@ class WandbLogger:
         sample: dict[str, torch.Tensor],
     ) -> None:
         """Log 3D images."""
+        if dist.get_rank() > 0:
+            return
         # Get reference sizes
         out_key = sorted(self.out_spec)[0]
         in_key = sorted(self.in_spec)[0]
