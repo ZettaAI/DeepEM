@@ -50,7 +50,7 @@ def train(opt):
     if opt.parallel == "DDP":
         if dist.get_rank() == 0:
             model = revert_sync_batchnorm(model)
-            save_chkpt(model, opt.model_dir, opt.chkpt_num, optimizer)
+            save_chkpt(model.module, opt.model_dir, opt.chkpt_num, optimizer)
             model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     else:
         save_chkpt(model, opt.model_dir, opt.chkpt_num, optimizer)
@@ -123,7 +123,7 @@ def train(opt):
                 if opt.parallel == "DDP":
                     if dist.get_rank() == 0:
                         model = revert_sync_batchnorm(model)
-                        save_chkpt(model, opt.model_dir, i+1, optimizer)
+                        save_chkpt(model.module, opt.model_dir, i+1, optimizer)
                         if opt.export_onnx:
                             export_onnx(opt, i+1)
                         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
