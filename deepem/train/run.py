@@ -2,6 +2,9 @@ import os
 import time
 
 import torch
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
+
 import samwise
 
 from deepem.train.logger import Logger
@@ -12,9 +15,21 @@ from deepem.train.utils import *
 from deepem.utils.onnx_utils import export_onnx
 
 
+def setup_distributed(backend='nccl'):
+    dist.init_process_group(backend=backend)
+
+
+def cleanup_distributed():
+    dist.destroy_process_group()
+
+
 def train(opt):
     # Model
+    local_rank = dist.get_rank() % torch.cuda.device_count()  # Identify which GPU to use
+    torch.cuda.set_device(local_rank)
     model = load_model(opt)
+    model = model.cuda(local_rank)  # Move model to the corresponding GPU
+    model = DDP(model, device_ids=[local_rank])  # Wrap model with DDP
 
     # Optimizer
     trainable = filter(lambda p: p.requires_grad, model.parameters())
@@ -132,6 +147,7 @@ def eval_loop(iter_num, model, data_loader, opt, logger, wandb_logger):
 
 
 if __name__ == "__main__":
+    setup_distributed()
 
     # Options
     opt = Options().parse()
@@ -160,3 +176,5 @@ if __name__ == "__main__":
             train(opt)
 
         samwise.run(f, opt.samwise_map, period=opt.samwise_period)
+
+    cleanup_distributed()
