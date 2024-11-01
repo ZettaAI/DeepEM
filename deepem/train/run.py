@@ -25,7 +25,7 @@ def cleanup_distributed():
 
 def train(opt):
     # Model
-    local_rank = dist.get_rank() % torch.cuda.device_count()  # Identify which GPU to use
+    local_rank = int(os.environ["LOCAL_RANK"])
     torch.cuda.set_device(local_rank)
     model = load_model(opt)
     model = model.cuda(local_rank)  # Move model to the corresponding GPU
