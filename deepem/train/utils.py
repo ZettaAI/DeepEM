@@ -33,6 +33,7 @@ def get_criteria(opt):
             params['size_average'] = False
             criteria[k] = loss.AffinityLoss(edges,
                 criterion=getattr(loss, opt.loss)(**params),
+                split_boundary=not opt.no_split_boundary,
                 size_average=opt.size_average,
                 class_balancer=balancer,
             )

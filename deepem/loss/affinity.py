@@ -7,15 +7,19 @@ from deepem.utils import torch_utils
 
 
 class EdgeSampler(object):
-    def __init__(self, edges):
+    def __init__(self, edges, split_boundary=True):
         self.edges = list(edges)
+        self.split_boundary = split_boundary
 
     def generate_edges(self):
         return list(self.edges)
 
     def generate_true_aff(self, obj, edge):
         o1, o2 = torch_utils.get_pair(obj, edge)
-        ret = ((o1 == o2) & (o1 != 0) & (o2 != 0))
+        if self.split_boundary:
+            ret = ((o1 == o2) & (o1 != 0) & (o2 != 0))
+        else:
+            ret = (o1 == o2)
         return ret.type(obj.type())
 
     def generate_mask_aff(self, mask, edge):
@@ -58,10 +62,10 @@ class EdgeCRF(nn.Module):
 
 
 class AffinityLoss(nn.Module):
-    def __init__(self, edges, criterion, size_average=False,
-                 class_balancer=None):
+    def __init__(self, edges, criterion, split_boundary=True,
+                 size_average=False, class_balancer=None):
         super(AffinityLoss, self).__init__()
-        self.sampler = EdgeSampler(edges)
+        self.sampler = EdgeSampler(edges, split_boundary=split_boundary)
         self.decoder = AffinityLoss.Decoder(edges)
         self.criterion = EdgeCRF(
             criterion,

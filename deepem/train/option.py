@@ -64,6 +64,7 @@ class Options(object):
 
         # Loss
         self.parser.add_argument('--loss', default='BCELoss')
+        self.parser.add_argument('--no_split_boundary', action='store_true')
         self.parser.add_argument('--size_average', action='store_true')
         self.parser.add_argument('--margin0', type=float, default=0)
         self.parser.add_argument('--margin1', type=float, default=0)
