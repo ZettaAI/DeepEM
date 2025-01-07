@@ -2,7 +2,7 @@ from augmentor import *
 
 
 def get_augmentation(is_train, tilt_series=(0,0,0), tilt_series_crop=None,
-                     recompute=False, **kwargs):
+                     recompute=[], **kwargs):
     augs = []
 
     # Flip & rotate (isotropic)
@@ -27,6 +27,6 @@ def get_augmentation(is_train, tilt_series=(0,0,0), tilt_series_crop=None,
 
     # Recompute connected components
     if recompute:
-        augs.append(Label())
+        augs.append(Label(targets=recompute))
 
     return Compose(augs)

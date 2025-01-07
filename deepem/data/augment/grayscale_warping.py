@@ -1,13 +1,13 @@
 from augmentor import *
 
 
-def get_augmentation(is_train, recompute=False, grayscale=False, warping=False,
+def get_augmentation(is_train, recompute=[], grayscale=False, warping=False,
                      **kwargs):
     augs = list()
 
     # Recompute connected components
     if recompute:
-        augs.append(Label())
+        augs.append(Label(targets=recompute))
 
     # Brightness & contrast purterbation
     if is_train and grayscale:

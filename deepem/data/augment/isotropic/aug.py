@@ -8,7 +8,7 @@ from augmentor import *
 
 def get_augmentation(
     is_train,
-    recompute=False,
+    recompute=[],
     box=None,
     blur=7,
     border=[],
@@ -71,6 +71,6 @@ def get_augmentation(
 
     # Recompute connected components
     if recompute:
-        augs.append(Label())
+        augs.append(Label(targets=recompute))
 
     return Compose(augs)

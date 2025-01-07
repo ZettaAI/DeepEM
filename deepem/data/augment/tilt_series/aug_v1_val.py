@@ -2,7 +2,7 @@ from augmentor import *
 
 
 def get_augmentation(is_train, tilt_series=(0,0,0), tilt_series_crop=None,
-                     recompute=False, box=None, missing=7, blur=7, random=False,
+                     recompute=[], box=None, missing=7, blur=7, random=False,
                      **kwargs):
     augs = []
 
@@ -28,7 +28,7 @@ def get_augmentation(is_train, tilt_series=(0,0,0), tilt_series_crop=None,
 
     # Recompute connected components
     if recompute:
-        augs.append(Label())
+        augs.append(Label(targets=recompute))
 
     # Box
     if is_train:

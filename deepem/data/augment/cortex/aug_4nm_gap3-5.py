@@ -8,7 +8,7 @@ def get_augmentation(
     blur=7,
     lost=True,
     random=False,
-    recompute=False,
+    recompute=[],
     border=[],
     mask_section_gap=False,
     **kwargs

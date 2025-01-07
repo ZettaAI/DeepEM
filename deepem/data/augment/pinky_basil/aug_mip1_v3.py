@@ -8,7 +8,7 @@ def get_augmentation(
     blur=7,
     lost=True,
     random=False,
-    recompute=False,
+    recompute=[],
     border=False,
     **kwargs
 ):
@@ -83,7 +83,7 @@ def get_augmentation(
 
     # Recompute connected components
     if recompute:
-        augs.append(Label())
+        augs.append(Label(targets=recompute))
 
     # Flip & rotate
     augs.append(FlipRotate())
