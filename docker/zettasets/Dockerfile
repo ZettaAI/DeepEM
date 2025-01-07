@@ -53,6 +53,9 @@ RUN apt-get update \
 RUN cd /tmp/zettasets && \
     pip install -e .
 
+# Install the latest version of cloud-volume
+RUN pip install --no-cache-dir --upgrade cloud-volume imagecodecs
+
 RUN mkdir -p /workspace
 ENV PYTHONPATH /DeepEM:${PYTHONPATH}
 
