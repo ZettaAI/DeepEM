@@ -9,7 +9,7 @@ def get_augmentation(
     lost=True,
     random=False,
     recompute=[],
-    border=False,
+    border=[],
     **kwargs
 ):
     augs = list()
@@ -90,6 +90,6 @@ def get_augmentation(
 
     # Create border
     if border:
-        augs.append(Border())
+        augs.append(Border(targets=border))
 
     return Compose(augs)
