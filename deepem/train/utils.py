@@ -25,7 +25,10 @@ def get_criteria(opt):
     for k in opt.out_spec:
         if k == 'affinity' or k == 'long_range':
             if k == 'affinity':
-                edges = [(0,0,1),(0,1,0),(1,0,0)]
+                if opt.diag_xy_aff:
+                    edges = [(0,1,1),(0,1,1),(1,0,0)]
+                else:
+                    edges = [(0,0,1),(0,1,0),(1,0,0)]
             else:
                 edges = list(opt.edges)
             assert len(edges) > 0

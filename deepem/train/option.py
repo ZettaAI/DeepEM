@@ -134,7 +134,10 @@ class Options(object):
         self.parser.add_argument('--tilt_series_in', type=int, default=12)
         self.parser.add_argument('--tilt_series_out', type=int, default=4)
         self.parser.add_argument('--tilt_series_crop', type=vec3, default=None)
-        
+
+        # Affinity
+        self.parser.add_argument('--diag_xy_aff', action='store_true')
+
         # Long-range affinity
         self.parser.add_argument('--long', type=float, default=0)
         self.parser.add_argument('--edges', type=vec3, default=[], nargs='+')
