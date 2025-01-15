@@ -23,8 +23,6 @@ class WandbLogger:
         self,
         opt: argparse.Namespace,
     ):
-        if dist.get_rank() > 0:
-            return
         self.opt = opt
         self.in_spec = dict(opt.in_spec)
         self.out_spec = dict(opt.out_spec)
@@ -60,7 +58,7 @@ class WandbLogger:
         iter_num: int,
         stats: dict[str, float],
     ) -> None:
-        if dist.get_rank() > 0:
+        if self.opt.parallel == "DDP" and dist.get_rank() > 0:
             return
         wandb.log(
             {f"{phase}/{metric}": value for metric, value in stats.items()},
@@ -74,7 +72,7 @@ class WandbLogger:
         sample: dict[str, torch.Tensor],
     ) -> None:
         """Log 3D images."""
-        if dist.get_rank() > 0:
+        if self.opt.parallel == "DDP" and dist.get_rank() > 0:
             return
         # Get reference sizes
         out_key = sorted(self.out_spec)[0]

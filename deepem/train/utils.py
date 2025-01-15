@@ -166,7 +166,7 @@ def load_data(opt, local_rank):
 
 def forward(model, sample, opt):
     # Forward pass
-    if len(opt.gpu_ids) > 1:
+    if len(opt.gpu_ids) > 1 and opt.parallel == 'DP':
         losses, nmasks, preds = data_parallel(model, sample)
     else:
         losses, nmasks, preds = model(sample)

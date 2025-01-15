@@ -25,11 +25,17 @@ def cleanup_distributed():
 
 def train(opt):
     # Model
-    local_rank = int(os.environ["LOCAL_RANK"])
-    torch.cuda.set_device(local_rank)
-    model = load_model(opt)
-    model = model.cuda(local_rank)  # Move model to the corresponding GPU
-    model = DDP(model, device_ids=[local_rank])  # Wrap model with DDP
+    if opt.parallel == "DDP":
+        # Make sure samewise finished syncing files
+        dist.barrier()
+        local_rank = int(os.environ["LOCAL_RANK"])
+        torch.cuda.set_device(local_rank)
+        model = load_model(opt)
+        model = model.cuda(local_rank)  # Move model to the corresponding GPU
+        model = DDP(model, device_ids=[local_rank])  # Wrap model with DDP
+    else:
+        local_rank = None
+        model = load_model(opt)
 
     # Optimizer
     trainable = filter(lambda p: p.requires_grad, model.parameters())
@@ -39,7 +45,7 @@ def train(opt):
     train_loader, val_loader = load_data(opt, local_rank)
 
     # Initial checkpoint
-    if dist.get_rank() == 0:
+    if opt.parallel != "DDP" or dist.get_rank() == 0:
         save_chkpt(model, opt.model_dir, opt.chkpt_num, optimizer)
 
     # Mixed-precision training
@@ -97,11 +103,12 @@ def train(opt):
 
             # Evaluation loop
             if (i+1) % opt.eval_intv == 0:
-                eval_loop(i+1, model, val_loader, opt, logger, wandb_logger)
+                if opt.parallel != "DDP" or dist.get_rank() == 0:
+                    eval_loop(i+1, model, val_loader, opt, logger, wandb_logger)
 
             # Model checkpoint
             if (i+1) % opt.chkpt_intv == 0:
-                if dist.get_rank() == 0:
+                if opt.parallel != "DDP" or dist.get_rank() == 0:
                     save_chkpt(model, opt.model_dir, i+1, optimizer)
                     if opt.export_onnx:
                         export_onnx(opt, i+1)
@@ -149,16 +156,17 @@ def eval_loop(iter_num, model, data_loader, opt, logger, wandb_logger):
 
 
 if __name__ == "__main__":
-    setup_distributed()
 
     # Options
     opt = Options().parse()
 
+    if opt.parallel == "DDP":
+        setup_distributed()
     # GPUs
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(opt.gpu_ids)
 
     # Make directories.
-    if dist.get_rank() == 0:
+    if opt.parallel == "DDP" and dist.get_rank() == 0:
         if not os.path.isdir(opt.exp_dir):
             os.makedirs(opt.exp_dir)
         if not os.path.isdir(opt.log_dir):
@@ -173,11 +181,14 @@ if __name__ == "__main__":
     print(f"Running experiment: {opt.exp_name}")
     if opt.samwise_map is None:
         train(opt)
-
-    else:
+    elif opt.parallel != "DDP" or dist.get_rank() == 0:
         def f():
             train(opt)
-
         samwise.run(f, opt.samwise_map, period=opt.samwise_period)
+    else:
+        if dist.get_rank() % len(opt.gpu_ids) == 0:
+            samwise.storage.initdirs(opt.samwise_map)
+        train(opt)
 
-    cleanup_distributed()
+    if opt.parallel == "DDP":
+        cleanup_distributed()
