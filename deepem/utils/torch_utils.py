@@ -7,6 +7,30 @@ from torch.nn import functional as F
 from deepem.utils import py_utils
 
 
+def revert_sync_batchnorm(module):
+    # this is very similar to the function that it is trying to revert:
+    # https://github.com/pytorch/pytorch/blob/c8b3686a3e4ba63dc59e5dcfe5db3430df256833/torch/nn/modules/batchnorm.py#L679
+    module_output = module
+    if isinstance(module, nn.modules.batchnorm.SyncBatchNorm):
+        module_output = nn.BatchNorm3d(module.num_features,
+                                               module.eps, module.momentum,
+                                               module.affine,
+                                               module.track_running_stats)
+        if module.affine:
+            with torch.no_grad():
+                module_output.weight = module.weight
+                module_output.bias = module.bias
+        module_output.running_mean = module.running_mean
+        module_output.running_var = module.running_var
+        module_output.num_batches_tracked = module.num_batches_tracked
+        if hasattr(module, "qconfig"):
+            module_output.qconfig = module.qconfig
+    for name, child in module.named_children():
+        module_output.add_module(name, revert_sync_batchnorm(child))
+    del module
+    return module_output
+
+
 def get_pair_first(arr, edge):
     shape = arr.size()[-3:]
     edge = np.array(edge)

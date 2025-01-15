@@ -13,6 +13,7 @@ from deepem.train.option import Options
 from deepem.train.utils import *
 
 from deepem.utils.onnx_utils import export_onnx
+from deepem.utils.torch_utils import revert_sync_batchnorm
 
 
 def setup_distributed(backend='nccl'):
@@ -31,6 +32,7 @@ def train(opt):
         local_rank = int(os.environ["LOCAL_RANK"])
         torch.cuda.set_device(local_rank)
         model = load_model(opt)
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = model.cuda(local_rank)  # Move model to the corresponding GPU
         model = DDP(model, device_ids=[local_rank])  # Wrap model with DDP
     else:
@@ -45,7 +47,12 @@ def train(opt):
     train_loader, val_loader = load_data(opt, local_rank)
 
     # Initial checkpoint
-    if opt.parallel != "DDP" or dist.get_rank() == 0:
+    if opt.parallel == "DDP":
+        if dist.get_rank() == 0:
+            model = revert_sync_batchnorm(model)
+            save_chkpt(model, opt.model_dir, opt.chkpt_num, optimizer)
+            model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+    else:
         save_chkpt(model, opt.model_dir, opt.chkpt_num, optimizer)
 
     # Mixed-precision training
@@ -103,12 +110,24 @@ def train(opt):
 
             # Evaluation loop
             if (i+1) % opt.eval_intv == 0:
-                if opt.parallel != "DDP" or dist.get_rank() == 0:
+                if opt.parallel == "DDP":
+                    if dist.get_rank() == 0:
+                        model = revert_sync_batchnorm(model)
+                        eval_loop(i+1, model, val_loader, opt, logger, wandb_logger)
+                        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+                else:
                     eval_loop(i+1, model, val_loader, opt, logger, wandb_logger)
 
             # Model checkpoint
             if (i+1) % opt.chkpt_intv == 0:
-                if opt.parallel != "DDP" or dist.get_rank() == 0:
+                if opt.parallel == "DDP":
+                    if dist.get_rank() == 0:
+                        model = revert_sync_batchnorm(model)
+                        save_chkpt(model, opt.model_dir, i+1, optimizer)
+                        if opt.export_onnx:
+                            export_onnx(opt, i+1)
+                        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+                else:
                     save_chkpt(model, opt.model_dir, i+1, optimizer)
                     if opt.export_onnx:
                         export_onnx(opt, i+1)
