@@ -185,12 +185,18 @@ class Options(object):
         self.parser.add_argument('--export_onnx', action='store_true')
         self.parser.add_argument('--opset_version', type=int, default=10)
 
+        self.parser.add_argument('--parallel', type=str, choices=["DDP", "DP", ], default=None)
+
         self.initialized = True
 
     def parse(self):
         if not self.initialized:
             self.initialize()
         opt = self.parser.parse_args()
+
+        if not opt.parallel:
+            if "RANK" in os.environ or "LOCAL_RANK" in os.environ:
+                opt.parallel = "DDP"
 
         # Directories
         if opt.exp_name.split('/')[0] == 'experiments':
