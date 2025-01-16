@@ -4,6 +4,7 @@ import datetime
 from collections import OrderedDict
 
 import torch
+import torch.distributed as dist
 
 
 class Logger(object):
@@ -20,12 +21,16 @@ class Logger(object):
 
         # Basic logging
         self.timestamp = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
+        self.blv_num_channels = opt.blv_num_channels
+
+        if opt.parallel == "DDP" and dist.get_rank() > 0:
+            return
+
         self.log_params(vars(opt))
         self.log_command()
         self.log_command_args()
 
         # Blood vessel
-        self.blv_num_channels = opt.blv_num_channels
 
     def __enter__(self):
         return self
