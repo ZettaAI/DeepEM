@@ -59,5 +59,3 @@ ENV PYTHONPATH=/DeepEM:${PYTHONPATH}
 
 COPY . /DeepEM/
 WORKDIR /workspace
-
-ENTRYPOINT ["python", "/DeepEM/deepem/train/run.py"]
