@@ -4,6 +4,16 @@ from collections import namedtuple
 
 from sklearn.decomposition import PCA
 
+import importlib
+import importlib.util
+
+
+def load_module(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
 
 def dict2tuple(d):
     return namedtuple('GenericDict', d.keys())(**d)
