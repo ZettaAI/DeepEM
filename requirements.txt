@@ -3,8 +3,5 @@ igneous-pipeline
 scikit-image
 scikit-learn
 task-queue
-tensorflow
-tensorboard
-tensorboardX
 wandb
 git+https://github.com/seung-lab/DataTools.git

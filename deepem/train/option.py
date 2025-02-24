@@ -176,9 +176,6 @@ class Options(object):
         self.parser.add_argument('--export_onnx', action='store_true')
         self.parser.add_argument('--opset_version', type=int, default=10)
 
-        # TensorBoard logging
-        self.parser.add_argument('--tensorboard', action='store_true')
-
         self.initialized = True
 
     def parse(self):

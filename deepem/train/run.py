@@ -77,7 +77,6 @@ def train(opt):
 
             # Image logging
             if (i+1) % opt.imgs_intv == 0:
-                logger.log_images('train', i+1, preds, sample)
                 wandb_logger.log_images('train', i+1, preds, sample)
 
             # Evaluation loop
@@ -126,7 +125,6 @@ def eval_loop(iter_num, model, data_loader, opt, logger, wandb_logger):
 
     # Image logging
     if iter_num % opt.imgs_intv == 0:
-        logger.log_images('test', iter_num, preds, sample)
         wandb_logger.log_images('test', iter_num, preds, sample)
     print("-------------------------------------------")
 
