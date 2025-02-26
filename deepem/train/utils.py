@@ -1,4 +1,3 @@
-import imp
 import os
 import glob
 
@@ -9,6 +8,7 @@ import deepem.loss as loss
 from deepem.train.data import Data
 from deepem.train.model import Model, AmpModel
 from deepem.loss.utils import BinaryWeightBalancer
+from deepem.utils.py_utils import load_module
 
 
 def get_criteria(opt):
@@ -59,7 +59,9 @@ def get_criteria(opt):
 
 def load_model(opt):
     # Create a model.
-    mod = imp.load_source('model', opt.model)
+
+    mod = load_module("model", opt.model)
+
     if opt.mixed_precision:
         model = AmpModel(mod.create_model(opt), get_criteria(opt), opt)
     else:

@@ -1,4 +1,3 @@
-import imp
 import numpy as np
 import os
 from types import SimpleNamespace
@@ -11,7 +10,7 @@ from deepem.utils import py_utils
 
 def load_model(opt):
     # Create a model.
-    mod = imp.load_source('model', opt.model)
+    mod = py_utils.load_module('model', opt.model)
     if opt.onnx:
         model = OnnxModel(mod.create_model(opt), opt)
     else:
