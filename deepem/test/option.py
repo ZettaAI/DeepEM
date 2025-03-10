@@ -62,6 +62,7 @@ class Options(object):
         self.parser.add_argument('--syn',  action='store_true')
         self.parser.add_argument('--psd',  action='store_true')
         self.parser.add_argument('--mit',  action='store_true')
+        self.parser.add_argument('--mito_to_cell', action='store_true')
         self.parser.add_argument('--mye',  action='store_true')
         self.parser.add_argument('--mye_thresh', type=float, default=0.5)
         self.parser.add_argument('--blv',  action='store_true')
@@ -200,6 +201,9 @@ class Options(object):
             opt.out_spec['synapse'] = (1,) + opt.outputsz
         if opt.mit:
             opt.out_spec['mitochondria'] = (1,) + opt.outputsz
+        if opt.mito_to_cell:
+            opt.in_spec['input_mitochondria'] = (1,) + opt.inputsz
+            opt.out_spec['mitochondria_to_cell'] = (1,) + opt.outputsz
         if opt.mye:
             opt.out_spec['myelin'] = (1,) + opt.outputsz
         if opt.blv:
@@ -266,6 +270,8 @@ class Options(object):
             opt.scan_spec['synapse'] = (1,) + opt.outputsz
         if opt.mit:
             opt.scan_spec['mitochondria'] = (1,) + opt.outputsz
+        if opt.mito_to_cell:
+            opt.scan_spec['mitochondria_to_cell'] = (1,) + opt.outputsz
         if opt.mye:
             opt.scan_spec['myelin'] = (1,) + opt.outputsz
         if opt.blv:

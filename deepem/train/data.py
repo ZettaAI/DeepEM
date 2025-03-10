@@ -55,7 +55,7 @@ class Data(object):
         mod = load_module('sampler', opt.sampler)
         spec = mod.get_spec(opt.in_spec, opt.out_spec)
         zspecs = opt.zettaset_specs
-        sampler = mod.Sampler(data, spec, is_train, aug, prob, zspecs)
+        sampler = mod.Sampler(data, spec, is_train, aug, prob, zspecs, **opt.sampler_params)
 
         # Sample modifier
         if opt.modifier:
