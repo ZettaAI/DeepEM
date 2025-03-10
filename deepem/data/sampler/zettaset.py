@@ -10,19 +10,18 @@ def get_spec(
     in_spec: dict[str, tuple[int, ...]],
     out_spec: dict[str, tuple[int, ...]],
 ) -> dict[str, tuple[int, int, int]]:
-    spec = dict()
-    # Input spec
-    for k, v in in_spec.items():
-        spec[k] = tuple(v[-3:])
-    # Output spec
-    for k, v in out_spec.items():
-        dim = tuple(v[-3:])
-        spec[k] = dim
-        spec[k+'_mask'] = dim
+    spec = {}
+
+    for key, dims in {**in_spec, **out_spec}.items():
+        spatial_dims = dims[-3:]
+        spec[key] = spatial_dims
+        if key in out_spec:
+            spec[f"{key}_mask"] = spatial_dims
+
     return spec
 
 
-class Sampler(object):
+class Sampler:
     def __init__(
         self,
         data: dict[str, dict[str, np.ndarray]],
@@ -31,9 +30,10 @@ class Sampler(object):
         aug: Augment | None = None,
         prob: dict[str, float] | None = None,
         zettaset_specs: dict[str, dict] | None = None,
+        **kwargs,
     ):
         self.is_train = is_train
-        self.build(data, spec, aug, prob, zettaset_specs)
+        self.dataprovider = self.build_dataprovider(data, spec, aug, prob, zettaset_specs)
 
     def __call__(self) -> dict[str, np.ndarray]:
         sample = self.dataprovider()
@@ -43,47 +43,43 @@ class Sampler(object):
         self, sample: dict[str, np.ndarray]
     ) -> dict[str, np.ndarray]:
         sample = Augment.to_tensor(sample)
-        return self.to_float32(sample)
+        return self.convert_to_float32(sample)
 
-    def to_float32(
+    def convert_to_float32(
         self, sample: dict[str, np.ndarray]
     ) -> dict[str, np.ndarray]:
-        for k, v in sample.items():
-            sample[k] = v.astype('float32')
-        return sample
+        return {k: v.astype(np.float32) for k, v in sample.items()}
 
-    def build(
+    def build_dataprovider(
         self,
         data: dict[str, dict[str, np.ndarray]],
         spec: dict[str, tuple[int, int, int]],
         aug: Augment | None = None,
         prob: dict[str, float] | None = None,
         zettaset_specs: dict[str, dict] | None = None,
-    ) -> None:
-        """
-        Builds the data provider with datasets, augmentation, and sampling weights.
-        """
-        self.dataprovider = DataProvider(spec)
+    ) -> DataProvider:
+        dp = DataProvider(spec)
 
-         # Add datasets to the data provider
-        for key, value in data.items():
-            build_method = (
-                self.build_datasuperset
-                if zettaset_specs and key in zettaset_specs
-                else self.build_dataset
-            )
-            self.dataprovider.add_dataset(build_method(key, value, spec))
+        for key, dataset_data in data.items():
+            if zettaset_specs and key in zettaset_specs:
+                dataset = self.build_datasuperset(key, dataset_data, spec)
+            else:
+                dataset = self.build_dataset(key, dataset_data, spec)
 
-        # Set augmentation, image types, and segmentation types
-        self.dataprovider.set_augment(aug)
-        self.dataprovider.set_imgs(["input"])
-        self.dataprovider.set_segs(["affinity", "long_range", "embedding"])
+            dp.add_dataset(dataset)
 
-        # Initialize sampling weights (even if prob is None)
-        sampling_weights = [prob[k] for k in data.keys()] if prob else None
-        self.dataprovider.set_sampling_weights(p=sampling_weights)
+        dp.set_augment(aug)
+        dp.set_imgs(["input"])
+        dp.set_segs(["affinity", "long_range", "embedding"])
 
-        print(self.dataprovider)
+        if prob:
+            weights = [prob[k] for k in data]
+            dp.set_sampling_weights(p=weights)
+        else:
+            dp.set_sampling_weights(p=None)
+
+        print(dp)
+        return dp
 
     def build_datasuperset(
         self,
@@ -94,7 +90,6 @@ class Sampler(object):
         """Create a DataSuperset from the given data."""
         dset = DataSuperset(tag=tag)
 
-        # Add datasets to the DataSuperset
         for key, value in data.items():
             dset.add_dataset(self.build_dataset(key, value, spec))
 
@@ -109,8 +104,7 @@ class Sampler(object):
         """Create a Dataset from the given data and specification."""
         dset = Dataset(tag=tag)
 
-        # Iterate over the spec dictionary to add data and masks to the dataset
-        for key, _ in spec.items():
+        for key in spec.keys():
             if key.endswith("_mask"):
                 dset.add_mask(key=key, data=data[key], loc=True)
             else:
