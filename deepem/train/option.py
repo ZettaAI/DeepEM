@@ -152,6 +152,8 @@ class Options(object):
         self.parser.add_argument('--glia', type=float, default=0) # Glia
         self.parser.add_argument('--glia_mask', action='store_true')
         self.parser.add_argument('--img', type=float, default=0)  # Image
+        self.parser.add_argument('--mito_to_cell', type=float, default=0)  # Mito to cell
+        self.parser.add_argument('--mito_to_cell_mode', type=str, default='random')  # Mito to cell mode
 
         # Semantic segmentation
         self.parser.add_argument('--sem', action='store_true')
@@ -303,6 +305,7 @@ class Options(object):
             'nucl': ('nucleus', 1),
             'ecs':  ('extracellular_space', 1),
             'other':  ('other_class', 1),
+            'mito_to_cell': ('mitochondria_to_cell', 1),
         }
 
         semantic_mapping = {
@@ -347,6 +350,14 @@ class Options(object):
                 opt.loss_weight[output_name] = loss_w
                 class_keys.append(k)
 
+        # Mito-to-cell assignment hacks
+        if opt.mito_to_cell > 0:
+            opt.in_spec = {
+                'input': (1,) + opt.inputsz,
+                'input_mitochondria': (1,) + opt.inputsz,
+            }
+            opt.out_spec['mitochondria_to_cell'] = (1,) + opt.inputsz
+
         assert len(opt.out_spec) > 0
         assert len(opt.out_spec) == len(opt.loss_weight) == len(class_keys)
         opt.data_params = dict(
@@ -361,6 +372,12 @@ class Options(object):
             zettaset_share_mask=opt.zettaset_share_mask,
             semantic_mapping=semantic_mapping if opt.sem else {},
         )
+
+        # Sampler
+        opt.sampler_params = {
+            'mode': opt.mito_to_cell_mode,
+            'output_shape': opt.outputsz,
+        }
 
         # ONNX
         opt.onnx = False

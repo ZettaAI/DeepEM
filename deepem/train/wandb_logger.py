@@ -76,8 +76,9 @@ class WandbLogger:
             assert np.array_equal(outsz, cropsz)
 
         # Input
-        key = "input"
-        logs = [wandb.Image(self.to_array(sample[key], cropsz), caption=key)]
+        logs = []
+        for key in sorted(self.in_spec):
+            logs.append(wandb.Image(self.to_array(sample[key], cropsz), caption=key))
 
         # Outputs
         for key in sorted(self.out_spec):
