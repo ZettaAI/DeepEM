@@ -22,7 +22,12 @@ class Model(nn.Module):
     def forward(self, sample):
         # Forward pass
         inputs = [sample[k] for k in sorted(self.in_spec)]
-        preds = self.model(*inputs)
+        # If multiple inputs, concatenate them
+        if len(inputs) > 1:
+            input_tensor = torch.cat(inputs, dim=1)
+        else:
+            input_tensor = inputs[0]
+        preds = self.model(input_tensor)
 
         # Loss evaluation
         try:
