@@ -32,13 +32,14 @@ def batchnorm3d_to_instancenorm3d(
 def dummy_input(
     spec: dict[str, tuple[int, ...]],
     device: str = 'cpu'
-) -> dict[str, torch.Tensor]:
-    """Generate a random input."""
-    inputs = {}
+) -> torch.Tensor:
+    """Generate a single random concatenated input tensor."""
+    tensors = []
     for k in sorted(spec):
         size = (1,) + tuple(spec[k])
-        inputs[k] = torch.randn(*size, device=device)
-    return inputs
+        tensors.append(torch.randn(*size, device=device))
+    # Concatenate inputs along the channel dimension
+    return torch.cat(tensors, dim=1)
 
 
 def export_onnx(
@@ -70,12 +71,11 @@ def export_onnx(
     print(f"Replaced {count} BatchNorm3d layer to InstanceNorm3d layer.")
     fname = os.path.join(onnx_opt.model_dir, f"model{chkpt_num}.onnx")
 
-    # Arugment passing differs according to the PyTorch version
     args = dummy_input(onnx_opt.in_spec, device=onnx_opt.device)
+
     if torch.__version__ >= '1.10':
         args = (args, {})
 
-    # Run ONNX conversion
     torch.onnx.export(
         onnx_model,
         args,
@@ -83,7 +83,7 @@ def export_onnx(
         verbose=False,
         export_params=True,
         opset_version=onnx_opt.opset_version,
-        input_names=["input"],
+        input_names=["input"],  # single input tensor
         output_names=["output"]
     )
     print(f"Relative ONNX filepath: {fname}")
