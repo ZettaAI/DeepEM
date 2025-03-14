@@ -21,13 +21,12 @@ class Model(nn.Module):
 
     def forward(self, sample):
         # Forward pass
-        inputs = [sample[k] for k in sorted(self.in_spec)]
-        # If multiple inputs, concatenate them
-        if len(inputs) > 1:
-            input_tensor = torch.cat(inputs, dim=1)
+        input_dict = {k: sample[k] for k in sorted(self.in_spec)}
+        if len(input_dict) == 1:
+            [input_tensor] = input_dict.values()
+            preds = self.model(input_tensor)
         else:
-            input_tensor = inputs[0]
-        preds = self.model(input_tensor)
+            preds = self.model(input_dict)
 
         # Loss evaluation
         try:

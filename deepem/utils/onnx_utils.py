@@ -32,14 +32,23 @@ def batchnorm3d_to_instancenorm3d(
 def dummy_input(
     spec: dict[str, tuple[int, ...]],
     device: str = 'cpu'
-) -> torch.Tensor:
-    """Generate a single random concatenated input tensor."""
+) -> torch.Tensor | tuple[torch.Tensor, ...]:
+    """Generate random input tensor(s).
+
+    Args:
+        spec: Dictionary mapping input names to their shapes
+        device: Device to create tensors on
+
+    Returns:
+        Single tensor for single input, tuple of tensors for multiple inputs
+    """
     tensors = []
     for k in sorted(spec):
         size = (1,) + tuple(spec[k])
         tensors.append(torch.randn(*size, device=device))
-    # Concatenate inputs along the channel dimension
-    return torch.cat(tensors, dim=1)
+
+    # Return single tensor for backwards compatibility if only one input
+    return tensors[0] if len(tensors) == 1 else tuple(tensors)
 
 
 def export_onnx(
@@ -73,17 +82,20 @@ def export_onnx(
 
     args = dummy_input(onnx_opt.in_spec, device=onnx_opt.device)
 
-    if torch.__version__ >= '1.10':
-        args = (args, {})
+    # For PyTorch >= 1.10, export() expects model_args and model_kwargs separately
+    export_args = (args, {}) if torch.__version__ >= '1.10' else args
+
+    # Generate input names based on spec keys
+    input_names = sorted(onnx_opt.in_spec.keys())
 
     torch.onnx.export(
         onnx_model,
-        args,
+        export_args,
         fname,
         verbose=False,
         export_params=True,
         opset_version=onnx_opt.opset_version,
-        input_names=["input"],  # single input tensor
+        input_names=input_names,  # dynamic input names based on spec
         output_names=["output"]
     )
     print(f"Relative ONNX filepath: {fname}")

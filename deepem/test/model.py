@@ -51,8 +51,12 @@ class Model(nn.Module):
                 self.mask[k] = torch.from_numpy(mask).to(opt.device)
 
     def forward(self, sample):
-        inputs = [sample[k] for k in sorted(self.in_spec)]
-        preds = self.model(*inputs)
+        input_dict = {k: sample[k] for k in sorted(self.in_spec)}
+        if len(input_dict) == 1:
+            [input_tensor] = input_dict.values()
+            preds = self.model(input_tensor)
+        else:
+            preds = self.model(input_dict)
         outputs = dict()
         for k, x in preds.items():
             if k == 'embedding':
