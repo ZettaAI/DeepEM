@@ -15,18 +15,26 @@ def create_model(opt):
     else:
         # Batch normalization
         core = rsunet_act(width=width[:depth], zfactor=zfactor, act=opt.act)
-    return Model(core, opt.in_spec, opt.out_spec, width[0], crop=opt.crop,
+    return Model(core, opt.in_spec, opt.out_spec, width[0], crop=opt.crop, onnx=opt.onnx,
                 scale_init=opt.scale_init, scale_factor=opt.updown_scale_factor)
 
 
 class InputBlock(nn.Module):
-    def __init__(self, in_spec, out_channels, kernel_size):
+    def __init__(self, in_spec, out_channels, kernel_size, onnx=False):
         super().__init__()
-        total_in_channels = sum(v[-4] for v in in_spec.values())
-        self.block = Conv(total_in_channels, out_channels, kernel_size)
+        self.onnx = onnx
+        self.keys = sorted(in_spec.keys())  # Store keys for ONNX mode
+        self.blocks = nn.ModuleDict({
+            k: Conv(v[-4], out_channels, kernel_size)
+            for k, v in in_spec.items()
+        })
 
     def forward(self, x):
-        return self.block(x)
+        if self.onnx:
+            # For ONNX, expect x to be a tuple of tensors in same order as self.keys
+            return sum(self.blocks[k](xi) for k, xi in zip(self.keys, x))
+        # Normal PyTorch mode - x is a dict
+        return sum(m(x[k]) for k, m in self.blocks.items())
 
 
 class OutputBlock(nn.Module):
@@ -77,7 +85,7 @@ class Model(nn.Sequential):
     Residual Symmetric U-Net with down/upsampling for multiple inputs/outputs.
     """
     def __init__(self, core, in_spec, out_spec, out_channels, io_kernel=(5, 5, 5),
-                crop=None, scale_init=1.0, scale_factor=(1, 2, 2)):
+                crop=None, scale_init=1.0, scale_factor=(1, 2, 2), onnx=False):
         super().__init__()
 
         in_size = next(iter(in_spec.values()))[-3:]
@@ -88,9 +96,9 @@ class Model(nn.Sequential):
         new_size = tuple(int(s / f) for s, f in zip(in_size, scale_factor))
 
         self.add_module('down', DownBlock(size=new_size))
-        self.add_module('in', InputBlock(in_spec, out_channels, io_kernel))
+        self.add_module('in', InputBlock(in_spec, out_channels, io_kernel, onnx=onnx))
         self.add_module('core', core)
-        self.add_module('out', OutputBlock(out_channels, out_spec, io_kernel, scale_init=scale_init))
+        self.add_module('out', OutputBlock(out_channels, out_spec, io_kernel, onnx=onnx, scale_init=scale_init))
         self.add_module('up', UpBlock(out_spec, size=in_size))
         if crop is not None:
             self.add_module('crop', Crop(crop)) 
