@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -20,21 +21,27 @@ def create_model(opt):
 
 
 class InputBlock(nn.Module):
-    def __init__(self, in_spec, out_channels, kernel_size, onnx=False):
+    def __init__(self, in_spec, out_channels, kernel_size):
         super().__init__()
-        self.onnx = onnx
-        self.keys = sorted(in_spec.keys())  # Store keys for ONNX mode
+        self.keys = sorted(in_spec.keys())
         self.blocks = nn.ModuleDict({
             k: Conv(v[-4], out_channels, kernel_size)
             for k, v in in_spec.items()
         })
 
     def forward(self, x):
-        if self.onnx:
-            # For ONNX, expect x to be a tuple of tensors in same order as self.keys
-            return sum(self.blocks[k](xi) for k, xi in zip(self.keys, x))
-        # Normal PyTorch mode - x is a dict
-        return sum(m(x[k]) for k, m in self.blocks.items())
+        # PyTorch training mode - handle dict input
+        if isinstance(x, dict):
+            x = tuple(x[k] for k in self.keys)
+
+        # Handle single tensor or tuple input
+        if torch.is_tensor(x):
+            assert len(self.blocks) == 1, "Single tensor input requires exactly one input channel"
+            return self.blocks[self.keys[0]](x)
+
+        # Multiple input case (tuple)
+        assert len(x) == len(self.blocks), f"Expected {len(self.blocks)} inputs, got {len(x)}"
+        return sum(self.blocks[k](xi) for k, xi in zip(self.keys, x))
 
 
 class OutputBlock(nn.Module):
@@ -96,7 +103,7 @@ class Model(nn.Sequential):
         new_size = tuple(int(s / f) for s, f in zip(in_size, scale_factor))
 
         self.add_module('down', DownBlock(size=new_size))
-        self.add_module('in', InputBlock(in_spec, out_channels, io_kernel, onnx=onnx))
+        self.add_module('in', InputBlock(in_spec, out_channels, io_kernel))
         self.add_module('core', core)
         self.add_module('out', OutputBlock(out_channels, out_spec, io_kernel, onnx=onnx, scale_init=scale_init))
         self.add_module('up', UpBlock(out_spec, size=in_size))
