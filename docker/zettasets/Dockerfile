@@ -11,7 +11,7 @@ RUN apt-get update --allow-releaseinfo-change && \
 
 # Use an optimized PyTorch base image
 # FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-runtime
-FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
 
