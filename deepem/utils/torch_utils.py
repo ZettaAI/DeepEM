@@ -66,3 +66,34 @@ def vec2pca(v):
     pca = py_utils.fit_pca(vec)
     vec = py_utils.pca_scale_vec(vec, pca)
     return torch.from_numpy(vec)
+
+
+def pad_center(
+    tensor: torch.Tensor,
+    target_size: tuple[int, ...],
+) -> torch.Tensor:
+    """
+    Pad a tensor to match the target size, centering the original content.
+
+    Args:
+        tensor: Input tensor to pad
+        target_size: Desired output size for the last dimensions
+
+    Returns:
+        Padded tensor with dimensions matching target_size
+    """
+    # Convert inputs to lists for easier manipulation
+    current_size = list(tensor.shape[-len(target_size):])
+    target_size = list(target_size)
+
+    # Calculate padding
+    pad = []
+    for c, t in zip(reversed(current_size), reversed(target_size)):
+        diff = t - c
+        # Handle both positive (need padding) and negative (no padding needed) differences
+        pad_before = diff // 2
+        pad_after = diff - pad_before  # handles odd-sized differences
+        pad.extend([max(0, pad_before), max(0, pad_after)])
+
+    # Reverse pad list since F.pad expects dimensions in reverse order
+    return torch.nn.functional.pad(tensor, pad)

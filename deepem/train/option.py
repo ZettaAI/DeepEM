@@ -62,6 +62,9 @@ class Options(object):
         self.parser.add_argument('--no_eval', action='store_true')
         self.parser.add_argument('--pretrain', default=None)
 
+        # WandB logging
+        self.parser.add_argument('--wandb_pad_output', action='store_true')
+
         # Loss
         self.parser.add_argument('--loss', default='BCELoss')
         self.parser.add_argument('--no_split_boundary', action='store_true')

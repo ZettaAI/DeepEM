@@ -25,6 +25,7 @@ class WandbLogger:
         self.opt = opt
         self.in_spec = dict(opt.in_spec)
         self.out_spec = dict(opt.out_spec)
+        self.pad_output = getattr(opt, 'wandb_pad_output', False)
 
         # WandB login
         if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
@@ -68,47 +69,50 @@ class WandbLogger:
         sample: dict[str, torch.Tensor],
     ) -> None:
         """Log 3D images."""
-        # Peep output size
-        key = sorted(self.out_spec)[0]
-        cropsz = sample[key].shape[-3:]
-        for k in sorted(self.out_spec):
-            outsz = sample[k].shape[-3:]
-            assert np.array_equal(outsz, cropsz)
+        # Get reference sizes
+        out_key = sorted(self.out_spec)[0]
+        in_key = sorted(self.in_spec)[0]
+        outsz = sample[out_key].shape[-3:]
+        insz = sample[in_key].shape[-3:]
 
         # Input
         logs = []
         for key in sorted(self.in_spec):
-            logs.append(wandb.Image(self.to_array(sample[key], cropsz), caption=key))
+            # Crop inputs to match output size if not padding
+            cropsz = outsz if not self.pad_output else None
+            logs.append(wandb.Image(self.to_array(sample[key], cropsz=cropsz), caption=key))
 
         # Outputs
         for key in sorted(self.out_spec):
+            # Pad outputs to match input size if padding
+            padsz = insz if self.pad_output else None
 
             # Prediction
             if key in ["embedding"]:
                 # Metric graph
                 aff = vec2aff(preds[key], delta_d=self.opt.delta_d)
-                arr = self.to_array(aff)
+                arr = self.to_array(aff, padsz=padsz)
                 logs.append(wandb.Image(arr, caption=f"{key} metric graph"))
 
                 # Embeddings
                 vec = preds[key][[0],...].cpu()
                 vec = torch_utils.vec2pca(vec)
-                arr = self.to_array(vec.select(0, 0))
+                arr = self.to_array(vec.select(0, 0), padsz=padsz)
             else:
-                arr = self.to_array(torch.sigmoid(preds[key]))
+                arr = self.to_array(torch.sigmoid(preds[key]), padsz=padsz)
             logs.append(wandb.Image(arr, caption=f"{key} prediciton"))
 
             # Label
             if key in ["affinity", "long_range", "embedding"]:
                 seg = sample[key][0,0,...].cpu().numpy().astype('uint32')
                 rgb = torch.from_numpy(py_utils.seg2rgb(seg))
-                arr = self.to_array(rgb)
+                arr = self.to_array(rgb, padsz=padsz)
             else:
-                arr = self.to_array(sample[key])
+                arr = self.to_array(sample[key], padsz=padsz)
             logs.append(wandb.Image(arr, caption=f"{key} label"))
 
             # Mask
-            arr = self.to_array(sample[f"{key}_mask"])
+            arr = self.to_array(sample[f"{key}_mask"], padsz=padsz)
             logs.append(wandb.Image(arr, caption=f"{key} mask"))
 
         # Log images
@@ -118,10 +122,16 @@ class WandbLogger:
         self,
         tensor: torch.Tensor,
         cropsz: tuple[int, int, int] | None = None,
+        padsz: tuple[int, int, int] | None = None,
     ) -> torch.Tensor:
         """Convert a tensor to a loggable array."""
         tensor = tensor.cpu()
+        if padsz is not None:
+            # Pad smaller tensors to match padsz
+            if any(t < p for t, p in zip(tensor.shape[-3:], padsz)):
+                tensor = torch_utils.pad_center(tensor, padsz)
         if cropsz is not None:
+            # Crop larger tensors to match cropsz
             tensor = torch_utils.crop_center_no_strict(tensor, cropsz)
         assert (tensor.ndim >= 3) and (tensor.ndim <= 5)
         tensor = tensor[0, ...] if tensor.ndim > 4 else tensor
