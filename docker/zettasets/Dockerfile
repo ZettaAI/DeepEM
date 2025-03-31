@@ -46,7 +46,9 @@ RUN pip install --no-cache-dir \
     pip install --no-cache-dir \
         git+https://github.com/seung-lab/pytorch-emvision && \
     pip install --no-cache-dir \
-        git+https://github.com/ZettaAI/samwise
+        git+https://github.com/ZettaAI/samwise && \
+    pip install --no-cache-dir \
+        git+https://github.com/ZettaAI/cirrus-volume.git@main
 
 WORKDIR /tmp/zettasets
 RUN pip install --no-cache-dir -e .
