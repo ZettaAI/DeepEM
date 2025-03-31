@@ -69,7 +69,18 @@ class DownBlock(nn.Module):
         self.size = size
 
     def forward(self, x):
-        return F.interpolate(x, size=self.size, mode='trilinear', align_corners=False)
+        # Handle dictionary input
+        if isinstance(x, dict):
+            return {k: F.interpolate(v, size=self.size, mode='trilinear', align_corners=False)
+                   for k, v in x.items()}
+
+        # Handle single tensor input
+        if torch.is_tensor(x):
+            return F.interpolate(x, size=self.size, mode='trilinear', align_corners=False)
+
+        # Handle tuple of tensors
+        return tuple(F.interpolate(xi, size=self.size, mode='trilinear', align_corners=False)
+                    for xi in x)
 
 
 class UpBlock(nn.Module):
@@ -84,7 +95,13 @@ class UpBlock(nn.Module):
         })
 
     def forward(self, x):
-        return {k: block(x[k]) for k, block in self.blocks.items()}
+        # Handle dictionary input
+        if isinstance(x, dict):
+            return {k: block(x[k]) for k, block in self.blocks.items()}
+
+        # Handle tuple input
+        assert len(x) == len(self.blocks), f"Expected {len(self.blocks)} inputs, got {len(x)}"
+        return {k: block(xi) for (k, block), xi in zip(self.blocks.items(), x)}
 
 
 class Model(nn.Sequential):
