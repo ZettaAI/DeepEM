@@ -37,27 +37,31 @@ def get_coord_bbox(cvol, opt):
 
     return Bbox(opt.begin, opt.end)
 
-def cutout(opt, gs_path, dtype='uint8', channels=0):
+def cutout(opt, gs_path, dtype='uint8', channels=0, in_mip=None, coord_mip=None):
     if '{}' in gs_path:
         gs_path = gs_path.format(*opt.keywords)
     print(gs_path)
 
-     # CloudVolume for coordinate handling (coord_mip)
-    coord_cvol = cv.CloudVolume(gs_path, mip=opt.coord_mip)
+    # Use provided mip values if available, otherwise fall back to opt values
+    actual_coord_mip = coord_mip if coord_mip is not None else opt.coord_mip
+    actual_in_mip = in_mip if in_mip is not None else opt.in_mip
+
+    # CloudVolume for coordinate handling (coord_mip)
+    coord_cvol = cv.CloudVolume(gs_path, mip=actual_coord_mip)
 
     # CloudVolume for data fetching (in_mip)
-    data_cvol = cv.CloudVolume(gs_path, mip=opt.in_mip, cache=opt.cache,
-                               fill_missing=True, parallel=opt.parallel)
+    data_cvol = cv.CloudVolume(gs_path, mip=actual_in_mip, cache=opt.cache,
+                              fill_missing=True, parallel=opt.parallel)
 
     # Get bounding box based on coord_mip
     coord_bbox = get_coord_bbox(coord_cvol, opt)
 
-    if opt.coord_mip != opt.in_mip:
-        print(f"mip {opt.coord_mip} = {coord_bbox}")
+    if actual_coord_mip != actual_in_mip:
+        print(f"mip {actual_coord_mip} = {coord_bbox}")
 
     # Convert bbox to in_mip coordinates if needed
-    in_bbox = coord_cvol.bbox_to_mip(coord_bbox, mip=opt.coord_mip, to_mip=opt.in_mip)
-    print(f"mip {opt.in_mip} = {in_bbox}")
+    in_bbox = coord_cvol.bbox_to_mip(coord_bbox, mip=actual_coord_mip, to_mip=actual_in_mip)
+    print(f"mip {actual_in_mip} = {in_bbox}")
 
     # Data cutout from in_mip
     cutout = data_cvol[in_bbox.to_slices()]

@@ -90,12 +90,16 @@ class Options(object):
         self.parser.add_argument('--temperature', type=float, default=None)
 
         # Cloud-volume input
+        self.parser.add_argument('--gs_inputs', type=json.loads, default={})
         self.parser.add_argument('--gs_input', default='')
         self.parser.add_argument('--gs_input_mask', default='')
         self.parser.add_argument('--gs_input_norm', type=float, default=None, nargs='+')
+        self.parser.add_argument('--gs_normalize_keys', type=str, nargs='+', default=['input'])
         self.parser.add_argument('--in_mip', type=int, default=0)
-        self.parser.add_argument('--cache', action='store_true')
         self.parser.add_argument('--coord_mip', type=int, default=0)
+        self.parser.add_argument('--in_mips', type=json.loads, default={})
+        self.parser.add_argument('--coord_mips', type=json.loads, default={})
+        self.parser.add_argument('--cache', action='store_true')
         self.parser.add_argument('-b','--begin', type=vec3, default=None)
         self.parser.add_argument('-e','--end', type=vec3, default=None)
         self.parser.add_argument('-c','--center', type=vec3, default=None)
@@ -337,6 +341,29 @@ class Options(object):
         if opt.tags is not None:
             for k in opt.tags:
                 assert k in opt.scan_spec
+
+        # Validate mutually exclusive cloud-volume inputs
+        if opt.gs_input and opt.gs_inputs:
+            raise ValueError("Cannot use both --gs_input and --gs_inputs. Please use only one.")
+
+        # Handle cloud-volume inputs
+        if opt.gs_input:
+            # Backward compatibility - convert single input to dict format
+            opt.gs_inputs = {'input': opt.gs_input}
+            opt.in_mips = {'input': opt.in_mip}
+            opt.coord_mips = {'input': opt.coord_mip}
+        elif opt.gs_inputs:
+            if 'input' not in opt.gs_inputs:
+                raise KeyError("Input key must be present in --gs_inputs")
+            opt.gs_input = opt.gs_inputs['input']
+            # Set default in_mip and coord_mip for all inputs if not specified
+            for key in opt.gs_inputs:
+                if key not in opt.in_mips:
+                    opt.in_mips[key] = opt.in_mip
+                if key not in opt.coord_mips:
+                    opt.coord_mips[key] = opt.coord_mip
+        opt.gs_input_masks = {'input': opt.gs_input_mask} if opt.gs_input_mask else {}
+        opt.gs_input_norms = {'input': opt.gs_input_norm} if opt.gs_input_norm is not None else {}
 
         args = vars(opt)
         print('------------ Options -------------')

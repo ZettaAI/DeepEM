@@ -35,30 +35,39 @@ def load_chkpt(model, fpath, chkpt_num):
 
 
 def make_forward_scanner(opt, data_name=None):
+    # Initialize dataset
+    dataset = Dataset(spec=opt.in_spec)
+
     # Cloud-volume
-    if opt.gs_input:
+    if opt.gs_inputs:
         try:
             from deepem.test import cv_utils
-            in_channels = opt.in_spec['input'][-4]
-            img = cv_utils.cutout(opt, opt.gs_input, dtype='uint8', channels=in_channels)
-            print(f'gs_input shape: {img.shape}')
-
-            # Optional input histogram normalization 
-            if opt.gs_input_norm:
-                assert len(opt.gs_input_norm) == 2
-                low, high = opt.gs_input_norm
-                img = normalize_per_slice(img, lowerfract=low, upperfract=high)
             
-            # [0, 255] -> [0.0, 1.0]
-            img = (img/255.).astype('float32')
+            # Process each input
+            for key, path in opt.gs_inputs.items():
+                in_channels = opt.in_spec[key][-4]
+                data = cv_utils.cutout(opt, path, channels=in_channels, in_mip=opt.in_mips[key], coord_mip=opt.coord_mips[key])
+                print(f'{key} shape: {data.shape}')
 
-            # Optional input mask
-            if opt.gs_input_mask:
-                try:
-                    msk = cv_utils.cutout(opt, opt.gs_input_mask, dtype='uint8', channels=in_channels)
-                    img[msk > 0] = 0
-                except:
-                    raise
+                # Optional input histogram normalization
+                if key in opt.gs_input_norms:
+                    assert len(opt.gs_input_norms[key]) == 2, f"Input norm for {key} must be a 2-tuple of (low, high) values"
+                    low, high = opt.gs_input_norms[key]
+                    data = normalize_per_slice(data, lowerfract=low, upperfract=high)
+
+                # Normalize specified keys to [0, 1]
+                if key in opt.gs_normalize_keys:
+                    data = (data / 255.).astype('float32')
+
+                # Optional input mask
+                if key in opt.gs_input_masks:
+                    try:
+                        msk = cv_utils.cutout(opt, opt.gs_input_masks[key], dtype='uint8', channels=in_channels)
+                        data[msk > 0] = 0
+                    except:
+                        raise
+
+                dataset.add_data(key, data)
 
         except ImportError:
             raise
@@ -78,9 +87,9 @@ def make_forward_scanner(opt, data_name=None):
             pad_width = [(x//2,x//2) for x in opt.mirror]
             img = np.pad(img, pad_width, 'reflect')
 
+        dataset.add_data('input', img)
+
     # ForwardScanner
-    dataset = Dataset(spec=opt.in_spec)
-    dataset.add_data('input', img)
     return ForwardScanner(dataset, opt.scan_spec, **opt.scan_params)
 
 
