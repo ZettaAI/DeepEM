@@ -118,10 +118,17 @@ class OnnxModel(Model):
         super(OnnxModel, self).__init__(*args)
 
     def forward(self, x):
-        preds = self.model(x)
-        pred = torch.cat(preds, dim=1)
-        if pred.dtype == torch.float16:
-            pred = pred.float().sigmoid().half()
-        else:
-            pred = pred.sigmoid()
-        return pred
+        preds = self.model(x)  # Already returns tuple in ONNX mode
+        # Apply sigmoid to non-embedding predictions
+        processed_preds = []
+        for pred, key in zip(preds, self.scan_spec.keys()):
+            if key != 'embedding':
+                if pred.dtype == torch.float16:
+                    pred = pred.float().sigmoid().half()
+                else:
+                    pred = pred.sigmoid()
+            processed_preds.append(pred)
+        # Return single tensor directly if only one prediction
+        if len(processed_preds) == 1:
+            return processed_preds[0]
+        return torch.cat(processed_preds, dim=1)
