@@ -10,6 +10,8 @@ def get_augmentation(
     random=False,
     recompute=[],
     border=[],
+    section_gap=0,
+    mask_section_gap=False,
     **kwargs
 ):
     augs = list()
@@ -18,12 +20,12 @@ def get_augmentation(
     if is_train:
         if box == 'noise':
             augs.append(
-                NoiseBox(sigma=(1,3), dims=(5,25), margin=(1,5,5),
+                NoiseBox(sigma=(1, 3), dims=(10, 50), margin=(1, 10, 10),
                          density=0.3, skip=0.1)
             )
         elif box == 'fill':
             augs.append(
-                FillBox(dims=(5,25), margin=(1,5,5),
+                FillBox(dims=(10, 50), margin=(1, 10, 10),
                         density=0.3, skip=0.1)
             )
 
@@ -37,22 +39,22 @@ def get_augmentation(
     # Missing section & misalignment
     to_blend = list()
     # Misalingments
-    trans = Compose([Misalign((0, 5), margin=1),
-                     Misalign((0,15), margin=1),
-                     Misalign((0,25), margin=1)])
+    trans = Compose([Misalign((0, 10), margin=1),
+                     Misalign((0, 30), margin=1),
+                     Misalign((0, 50), margin=1)])
 
     # Out-of-alignments
-    slip = Compose([SlipMisalign((0, 5), interp=True, margin=1),
-                    SlipMisalign((0,15), interp=True, margin=1),
-                    SlipMisalign((0,25), interp=True, margin=1)])
-    to_blend.append(Blend([trans,slip], props=[0.7,0.3]))
+    slip = Compose([SlipMisalign((0, 10), interp=True, margin=1),
+                    SlipMisalign((0, 30), interp=True, margin=1),
+                    SlipMisalign((0, 50), interp=True, margin=1)])
+    to_blend.append(Blend([trans, slip], props=[0.7, 0.3]))
     if is_train:
         to_blend.append(Blend([
-            MisalignPlusMissing((3,15), value=0, random=random),
-            MisalignPlusMissing((3,15), value=0, random=False)
+            MisalignPlusMissing((5, 30), value=0, random=random),
+            MisalignPlusMissing((5, 30), value=0, random=False)
         ]))
     else:
-        to_blend.append(MisalignPlusMissing((3,15), value=0, random=False))
+        to_blend.append(MisalignPlusMissing((5, 30), value=0, random=False))
     if missing > 0:
         if is_train:
             to_blend.append(Blend([
@@ -81,15 +83,19 @@ def get_augmentation(
     if is_train:
         augs.append(Warp(skip=0.3, do_twist=False, rot_max=45.0, scale_max=1.1))
 
-    # Recompute connected components
-    if recompute:
-        augs.append(Label(targets=recompute))
-
     # Flip & rotate
     augs.append(FlipRotate())
 
     # Create border
     if border:
         augs.append(Border(targets=border))
+
+    # Recompute connected components
+    if recompute:
+        augs.append(Label(targets=recompute))
+
+    # Section gap
+    if section_gap > 0:
+        augs.append(SectionGap(num_secs=section_gap, masked=mask_section_gap))
 
     return Compose(augs)

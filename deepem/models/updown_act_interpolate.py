@@ -1,7 +1,6 @@
-import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-import emvision
 from emvision.models import rsunet_act, rsunet_act_gn
 
 from deepem.models.layers import Conv, Crop
@@ -12,7 +11,7 @@ def create_model(opt):
         width = opt.width
         depth = len(width)
     else:
-        width = [16,32,64,128,256,512]
+        width = [16, 32, 64, 128, 256, 512]
         depth = opt.depth
     if opt.group > 0:
         # Group normalization
@@ -20,7 +19,8 @@ def create_model(opt):
     else:
         # Batch normalization
         core = rsunet_act(width=width[:depth], act=opt.act)
-    return Model(core, opt.in_spec, opt.out_spec, width[0], crop=opt.crop, onnx=opt.onnx)
+    return Model(core, opt.in_spec, opt.out_spec, width[0], crop=opt.crop,
+                 scale_factor=opt.updown_scale_factor)
 
 
 class InputBlock(nn.Sequential):
@@ -30,40 +30,39 @@ class InputBlock(nn.Sequential):
 
 
 class OutputBlock(nn.Module):
-    def __init__(self, in_channels, out_spec, kernel_size, onnx=False):
+    def __init__(self, in_channels, out_spec, kernel_size):
         super(OutputBlock, self).__init__()
-        self.onnx = onnx
         for k, v in out_spec.items():
             out_channels = v[-4]
             self.add_module(k,
                     Conv(in_channels, out_channels, kernel_size, bias=True))
 
     def forward(self, x):
-        if self.onnx:
-            return tuple(m(x) for k, m in self.named_children())
-        else:
-            return {k: m(x) for k, m in self.named_children()}
+        return {k: m(x) for k, m in self.named_children()}
 
 
-class DownBlock(nn.Sequential):
-    def __init__(self, scale_factor=(1,2,2)):
+class DownBlock(nn.Module):
+    def __init__(self, size):
         super(DownBlock, self).__init__()
-        self.add_module('down', nn.AvgPool3d(scale_factor))
+        self.size = size
+
+    def forward(self, x):
+        return F.interpolate(x, size=self.size, mode='trilinear', align_corners=False)
 
 
 class UpBlock(nn.Module):
-    def __init__(self, out_spec, scale_factor=(1,2,2), onnx=False):
+    def __init__(self, out_spec, size):
         super(UpBlock, self).__init__()
-        self.onnx = onnx
         for k, v in out_spec.items():
             self.add_module(k,
-                    nn.Upsample(scale_factor=scale_factor, mode='trilinear'))
+                    nn.Upsample(
+                        size=size,
+                        mode='trilinear',
+                        recompute_scale_factor=False,
+                    ))
 
     def forward(self, x):
-        if self.onnx:
-            return tuple(m(x[i]) for i, (_, m) in enumerate(self.named_children()))
-        else:
-            return {k: m(x[k]) for k, m in self.named_children()}
+        return {k: m(x[k]) for k, m in self.named_children()}
 
 
 class Model(nn.Sequential):
@@ -71,16 +70,19 @@ class Model(nn.Sequential):
     Residual Symmetric U-Net with down/upsampling in/output.
     """
     def __init__(self, core, in_spec, out_spec, out_channels, io_kernel=(1,5,5),
-                 scale_factor=(1,2,2), crop=None, onnx=False):
+                 scale_factor=(1, 2, 2), crop=None):
         super(Model, self).__init__()
 
         assert len(in_spec)==1, "model takes a single input"
         in_channels = 1
+        in_size = in_spec['input'][-3:]
+        assert all(s % f == 0 for s, f in zip(in_size, scale_factor))
+        new_size = tuple(int(s / f) for s, f in zip(in_size, scale_factor))
 
-        self.add_module('down', DownBlock(scale_factor=scale_factor))
+        self.add_module('down', DownBlock(size=new_size))
         self.add_module('in', InputBlock(in_channels, out_channels, io_kernel))
         self.add_module('core', core)
-        self.add_module('out', OutputBlock(out_channels, out_spec, io_kernel, onnx=onnx))
-        self.add_module('up', UpBlock(out_spec, scale_factor=scale_factor, onnx=onnx))
+        self.add_module('out', OutputBlock(out_channels, out_spec, io_kernel))
+        self.add_module('up', UpBlock(out_spec, size=in_size))
         if crop is not None:
             self.add_module('crop', Crop(crop))

@@ -77,6 +77,8 @@ class MeanLoss(nn.Module):
         delta_v: float = 0.0,
         delta_d: float = 1.5,
         recompute_ext: bool = False,
+        mask_background: bool = True,
+        loss_scale_factor: tuple[float, float, float] | None = None,
         **kwargs,
     ):
         super().__init__()
@@ -86,6 +88,8 @@ class MeanLoss(nn.Module):
         self.delta_v = delta_v  # Variance (intra-cluster pull force) hinge
         self.delta_d = delta_d  # Distance (inter-cluster push force) hinge
         self.recompute_ext = recompute_ext
+        self.mask_background = mask_background
+        self.loss_scale_factor = loss_scale_factor
 
     def forward(
         self,
@@ -102,25 +106,34 @@ class MeanLoss(nn.Module):
         """
         device = embd.device
 
+        # Downsample if enabled
+        if self.loss_scale_factor is not None:
+            embd = F.interpolate(embd, scale_factor=self.loss_scale_factor, mode='trilinear', align_corners=False)
+            trgt = F.interpolate(trgt, scale_factor=self.loss_scale_factor, mode='nearest')
+            mask = F.interpolate(mask, scale_factor=self.loss_scale_factor, mode='nearest')
+            if splt is not None:
+                splt = F.interpolate(splt, scale_factor=self.loss_scale_factor, mode='nearest')
+
         groups = None
         if self.recompute_ext:
             assert splt is not None
-            trgt_np = np.squeeze(trgt.cpu().numpy())
-            splt_np = np.squeeze(splt.cpu().numpy())
-            mask_np = np.squeeze(mask.cpu().numpy())
-            groups = create_mapping(trgt_np, splt_np, mask_np)
+            trgt = torch.squeeze(trgt)
+            splt = torch.squeeze(splt)
+            mask = torch.squeeze(mask)
+            groups = create_mapping(trgt.cpu().numpy(), splt.cpu().numpy(), mask.cpu().numpy())
             trgt = splt
 
         trgt = trgt.to(torch.int)
-        trgt *= (mask > 0).to(torch.int)
 
-        # Unique nonzero IDs
-        ids = np.unique(trgt.cpu().numpy())
-        ids = ids[ids != 0].tolist()
+        # Filter out background and get unique IDs
+        masked_trgt = trgt[mask > 0]
+        if self.mask_background:
+            masked_trgt = masked_trgt[masked_trgt != 0]
+        ids = torch.unique(masked_trgt).tolist()
 
         # Recompute external matrix
         mext = self.compute_ext_matrix(ids, groups, self.recompute_ext, device)
-        vecs = self.generate_vecs(embd, trgt, ids)
+        vecs = self.generate_vecs(embd, trgt, mask, ids)
         means = [torch.mean(vec, dim=0) for vec in vecs]
         weights = [1.0] * len(vecs)
 
@@ -186,17 +199,29 @@ class MeanLoss(nn.Module):
         self,
         embd: torch.Tensor,
         trgt: torch.Tensor,
+        mask: torch.Tensor,
         ids: Sequence[int],
     ) -> list[torch.Tensor]:
         """
         Generate a list of vectorized embeddings for each ground truth object.
         """
+        if self.mask_background and 0 in ids:
+            raise ValueError("ID '0' is not allowed when mask_background is enabled.")
+
+        mask_bool = mask.bool() if not self.mask_background else None
         result = []
+
         for obj_id in ids:
-            obj = torch.nonzero(trgt == int(obj_id))
-            z, y, x = obj[:, -3], obj[:, -2], obj[:, -1]
-            vec = embd[0, :, z, y, x].transpose(0, 1)  # Count x Dim
+            obj_mask = (trgt == int(obj_id)) & mask_bool if mask_bool is not None else (trgt == int(obj_id))
+            idx = torch.nonzero(obj_mask, as_tuple=True)
+
+            if idx[0].numel() == 0:
+                # If there are no indices for this ID, skip to the next one
+                continue
+
+            vec = embd[0, :, idx[-3], idx[-2], idx[-1]].transpose(0, 1)  # Count x Dim
             result.append(vec)
+
         return result
 
     def compute_ext_matrix(

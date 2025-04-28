@@ -4,7 +4,7 @@ import os
 import numpy as np
 import samwise
 
-from deepem.utils.py_utils import vec3
+from deepem.utils.py_utils import vec3, vec3f
 
 
 class Options(object):
@@ -18,17 +18,21 @@ class Options(object):
     def initialize(self):
         self.parser.add_argument('--exp_name', required=True)
         self.parser.add_argument('--model',    required=True)
-        self.parser.add_argument('--data',     required=True)
         self.parser.add_argument('--sampler',  required=True)
+        self.parser.add_argument('--data',     default=None)
         self.parser.add_argument('--augment',  default=None)
         self.parser.add_argument('--modifier', default=None)
         self.parser.add_argument('--modifier_kwargs', type=json.loads, default={})
 
         # zettasets
-        self.parser.add_argument('--zettaset_path', required=True, type=str, default=[], nargs='+')
+        self.parser.add_argument('--zettaset_path', type=str, default=[], nargs='+')
+        self.parser.add_argument('--zettaset_specs', type=json.loads, default={})
         self.parser.add_argument('--zettaset_lookup', type=json.loads, default=None)
         self.parser.add_argument('--zettaset_padding', type=vec3, default=(0, 0, 0))
+        self.parser.add_argument('--zettaset_padding_spec', type=json.loads, default={})
+        self.parser.add_argument('--zettaset_resolution', type=vec3f, default=None)
         self.parser.add_argument('--zettaset_no_mask', action='store_true')
+        self.parser.add_argument('--zettaset_share_mask', type=str, default=None)
 
         # file synchronization for spot/preemptible training
         self.parser.add_argument('--samwise_map', nargs='*', default=None)
@@ -60,6 +64,7 @@ class Options(object):
 
         # Loss
         self.parser.add_argument('--loss', default='BCELoss')
+        self.parser.add_argument('--no_split_boundary', action='store_true')
         self.parser.add_argument('--size_average', action='store_true')
         self.parser.add_argument('--margin0', type=float, default=0)
         self.parser.add_argument('--margin1', type=float, default=0)
@@ -78,6 +83,8 @@ class Options(object):
         self.parser.add_argument('--delta_v', type=float, default=0.0)
         self.parser.add_argument('--delta_d', type=float, default=1.5)
         self.parser.add_argument('--recompute_ext', action='store_true')
+        self.parser.add_argument('--no_mask_background', action='store_true')
+        self.parser.add_argument('--loss_scale_factor', type=vec3f, default=None)
 
         # Optimizer
         self.parser.add_argument('--optim', default='Adam')
@@ -99,9 +106,10 @@ class Options(object):
         self.parser.add_argument('--width', type=int, default=None, nargs='+')
         self.parser.add_argument('--group', type=int, default=0)
         self.parser.add_argument('--act', default='ReLU')
+        self.parser.add_argument('--updown_scale_factor', type=vec3f, default=None)
 
         # Data augmentation
-        self.parser.add_argument('--recompute', action='store_true')
+        self.parser.add_argument('--recompute', type=str, default=[], nargs='+')
         self.parser.add_argument('--border', type=str, default=[], nargs='+')
         self.parser.add_argument('--flip', action='store_true')
         self.parser.add_argument('--grayscale', action='store_true')
@@ -118,6 +126,8 @@ class Options(object):
         self.parser.add_argument('--noise_min', type=float, default=0.01)
         self.parser.add_argument('--noise_max', type=float, default=0.1)
         self.parser.add_argument('--noise_per_channel', action='store_true')
+        self.parser.add_argument('--section_gap', type=int, default=0)
+        self.parser.add_argument('--mask_section_gap', action='store_true')
 
         # Tilt-series electron tomography
         self.parser.add_argument('--tilt_series', type=int, default=0)
@@ -138,11 +148,19 @@ class Options(object):
         self.parser.add_argument('--mye', type=float, default=0)  # Myelin
         self.parser.add_argument('--fld', type=float, default=0)  # Fold
         self.parser.add_argument('--blv', type=float, default=0)  # Blood vessel
-        self.parser.add_argument('--blv_num_channels', type=int, default=2)
-        self.parser.add_argument('--glia', type=float, default=0)  # Glia
+        self.parser.add_argument('--blv_num_channels', type=int, default=1)
+        self.parser.add_argument('--glia', type=float, default=0) # Glia
         self.parser.add_argument('--glia_mask', action='store_true')
-        self.parser.add_argument('--soma', type=float, default=0)  # Soma
         self.parser.add_argument('--img', type=float, default=0)  # Image
+
+        # Semantic segmentation
+        self.parser.add_argument('--sem', action='store_true')
+        self.parser.add_argument('--dend', type=float, default=0)  # Dendrite
+        self.parser.add_argument('--axon', type=float, default=0)  # Axon
+        self.parser.add_argument('--soma', type=float, default=0)  # Soma
+        self.parser.add_argument('--nucl', type=float, default=0)  # Nucleus
+        self.parser.add_argument('--ecs',  type=float, default=0)  # Extracellular space
+        self.parser.add_argument('--other', type=float, default=0) # Other class
 
         # Metric learning
         self.parser.add_argument('--vec', type=float, default=0)
@@ -157,9 +175,6 @@ class Options(object):
         # Export to ONNX
         self.parser.add_argument('--export_onnx', action='store_true')
         self.parser.add_argument('--opset_version', type=int, default=10)
-
-        # TensorBoard logging
-        self.parser.add_argument('--tensorboard', action='store_true')
 
         self.initialized = True
 
@@ -186,7 +201,12 @@ class Options(object):
         if (not opt.train_ids) or (not opt.val_ids):
             raise ValueError("Train/validation IDs unspecified")
         if opt.train_prob:
-            assert len(opt.train_ids) == len(opt.train_prob)
+            if len(opt.train_ids) != len(opt.train_prob):
+                error_message = (
+                    "The lengths of 'train_ids' and 'train_prob' must be the same. "
+                    f"train_ids: {opt.train_ids}, train_prob: {opt.train_prob}"
+                )
+                raise ValueError(error_message)
         if opt.val_prob:
             assert len(opt.val_ids) == len(opt.val_prob)
 
@@ -205,6 +225,8 @@ class Options(object):
         opt.metric_params['delta_v'] = opt.delta_v
         opt.metric_params['delta_d'] = opt.delta_d
         opt.metric_params['recompute_ext'] = opt.recompute_ext
+        opt.metric_params['mask_background'] = not opt.no_mask_background
+        opt.metric_params['loss_scale_factor'] = opt.loss_scale_factor
 
         # Optimizer
         if opt.optim == 'Adam':
@@ -217,7 +239,8 @@ class Options(object):
 
         # Data augmentation
         aug_keys = ['recompute', 'border', 'flip','grayscale','warping','misalign',
-                    'interp','missing','blur','box','mip','lost','random']
+                    'interp','missing','blur','box','mip','lost','random',
+                    'section_gap', 'mask_section_gap']
         opt.aug_params = {k: args[k] for k in aug_keys}
 
         # Noise
@@ -275,6 +298,22 @@ class Options(object):
             'soma': ('soma', 1),
             'img':  ('image', 1),
             'vec':  ('embedding', opt.embed_dim),
+            'dend': ('dendrite', 1),
+            'axon': ('axon', 1),
+            'nucl': ('nucleus', 1),
+            'ecs':  ('extracellular_space', 1),
+            'other':  ('other_class', 1),
+        }
+
+        semantic_mapping = {
+            'dendrite': 1,
+            'axon': 2,
+            'soma': 3,
+            'nucleus': 4,
+            'glia': 5,
+            'extracellular_space': 6,
+            'blood_vessel': 7,
+            'other_class': 10,
         }
 
         requires_binarize = [
@@ -285,6 +324,12 @@ class Options(object):
             "glia",
             "soma",
         ]
+
+        if opt.blv_num_channels == 1:
+            requires_binarize.append("blood_vessel")
+
+        if opt.sem:
+            requires_binarize = [x for x in requires_binarize if x not in semantic_mapping]
 
         # Test training
         if opt.test:
@@ -309,8 +354,12 @@ class Options(object):
             glia_mask=opt.glia_mask,
             zettaset_lookup=opt.zettaset_lookup,
             zettaset_padding=opt.zettaset_padding,
+            zettaset_padding_spec=opt.zettaset_padding_spec,
+            zettaset_resolution=opt.zettaset_resolution,
             zettaset_mask=not opt.zettaset_no_mask,
             requires_binarize=requires_binarize,
+            zettaset_share_mask=opt.zettaset_share_mask,
+            semantic_mapping=semantic_mapping if opt.sem else {},
         )
 
         # ONNX

@@ -43,7 +43,7 @@ class BCELoss(nn.Module):
                 m_ext = torch.le(activ, m0) * torch.eq(target, 0)
                 mask *= 1 - (m_int + m_ext).type(mask.dtype)
 
-        loss = self.bce(input, target, weight=mask, size_average=False)
+        loss = self.bce(input, target, weight=mask, reduction='sum')
 
         if self.size_average:
             loss = loss / nmsk.item()
@@ -87,7 +87,7 @@ class MSELoss(nn.Module):
             m_ext = torch.le(activ, m0) * torch.eq(target, 0)
             mask *= 1 - (m_int + m_ext).type(mask.dtype)
 
-        loss = self.mse(activ, target, reduce=False)
+        loss = self.mse(activ, target, reduction='none')
         loss = (loss * mask).sum()
 
         if self.size_average:

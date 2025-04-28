@@ -25,22 +25,22 @@ def get_augmentation(
     mutex = list()
 
     # (1) Misalingment
-    trans = Compose([Misalign((0, 5), margin=1),
-                     Misalign((0,15), margin=1),
-                     Misalign((0,25), margin=1)])
-    slip = Compose([SlipMisalign((0, 5), interp=True, margin=1),
-                    SlipMisalign((0,15), interp=True, margin=1),
-                    SlipMisalign((0,25), interp=True, margin=1)])
-    mutex.append(Blend([trans,slip], props=[0.7,0.3]))
+    trans = Compose([Misalign((0, 3), margin=1),
+                     Misalign((0, 8), margin=1),
+                     Misalign((0, 13), margin=1)])
+    slip = Compose([SlipMisalign((0, 3), interp=True, margin=1),
+                    SlipMisalign((0, 8), interp=True, margin=1),
+                    SlipMisalign((0, 13), interp=True, margin=1)])
+    mutex.append(Blend([trans, slip], props=[0.7, 0.3]))
 
     # (2) Misalignment + missing section
     if is_train:
         mutex.append(Blend([
-            MisalignPlusMissing((3,15), value=0, random=random),
-            MisalignPlusMissing((3,15), value=0, random=False)
+            MisalignPlusMissing((2, 8), value=0, random=random),
+            MisalignPlusMissing((2, 8), value=0, random=False)
         ]))
     else:
-        mutex.append(MisalignPlusMissing((3,15), value=0, random=False))
+        mutex.append(MisalignPlusMissing((2, 8), value=0, random=False))
 
     # (3) Missing section
     if missing > 0:
@@ -71,12 +71,12 @@ def get_augmentation(
     if is_train:
         if box == 'noise':
             augs.append(
-                NoiseBox(sigma=(1,3), dims=(5,25), margin=(1,5,5),
+                NoiseBox(sigma=(1,3), dims=(3, 13), margin=(1, 3, 3),
                          density=0.3, skip=0.1)
             )
         elif box == 'fill':
             augs.append(
-                FillBox(dims=(5,25), margin=(1,5,5),
+                FillBox(dims=(3, 13), margin=(1, 3, 3),
                         density=0.3, skip=0.1)
             )
 

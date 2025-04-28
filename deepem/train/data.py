@@ -1,4 +1,5 @@
-import imp
+from deepem.utils.py_utils import load_module
+
 import numpy as np
 
 import torch
@@ -45,19 +46,20 @@ class Data(object):
     def build(self, opt, data, is_train, prob):
         # Data augmentation
         if opt.augment:
-            mod = imp.load_source('augment', opt.augment)
+            mod = load_module('augment', opt.augment)
             aug = mod.get_augmentation(is_train, **opt.aug_params)
         else:
             aug = None
 
         # Data sampler
-        mod = imp.load_source('sampler', opt.sampler)
+        mod = load_module('sampler', opt.sampler)
         spec = mod.get_spec(opt.in_spec, opt.out_spec)
-        sampler = mod.Sampler(data, spec, is_train, aug, prob=prob)
+        zspecs = opt.zettaset_specs
+        sampler = mod.Sampler(data, spec, is_train, aug, prob, zspecs)
 
         # Sample modifier
         if opt.modifier:
-            mod = imp.load_source('modifier', opt.modifier)
+            mod = load_module('modifier', opt.modifier)
             self.modifier = mod.Modifier(**opt.modifier_kwargs)
         else:
             def default_modifier(x, **kwargs):

@@ -1,4 +1,3 @@
-from __future__ import print_function
 from itertools import repeat
 import collections
 import math
@@ -26,7 +25,7 @@ def _ntuple(n):
     Copied from the PyTorch source code (https://github.com/pytorch).
     """
     def parse(x):
-        if isinstance(x, collections.Iterable):
+        if isinstance(x, collections.abc.Iterable):
             return x
         return tuple(repeat(x, n))
     return parse

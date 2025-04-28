@@ -11,6 +11,7 @@ from zettasets.sample import Sample
 def load_data(
     zettaset_paths: list[str],
     data_ids: list[str] | None = None,
+    zettaset_resolution: tuple[float, float, float] | None = None,
     **kwargs
 ) -> dict[str, dict[str, np.ndarray]]:
     """ Load data from a zettaset."""
@@ -21,9 +22,8 @@ def load_data(
     zettasets = []
     for zettaset_path in zettaset_paths:
         assert zettaset_path.startswith("gs://")
-        motivation = "Load a zettaset from DeepEM"
         print(f"Zettaset [{zettaset_path}]")
-        zettasets.append(Zettaset(zettaset_path, motivation))
+        zettasets.append(Zettaset(zettaset_path, "", zettaset_resolution))
 
     # Load data from a zettaset.
     data = {}
@@ -31,7 +31,11 @@ def load_data(
         for zettaset in zettasets:
             if data_id in zettaset.sample_names:
                 print(f"Sample [{data_id}]")
-                data[data_id] = load_sample(zettaset.samples[data_id], **kwargs)
+                data[data_id] = load_sample(
+                    zettaset.samples[data_id],
+                    zettaset_resolution,
+                    **kwargs
+                )
                 break
         if data_id not in data:
             raise KeyError(f"Invalid data id:{data_id}")
@@ -41,6 +45,7 @@ def load_data(
 
 def load_sample(
     sample: Sample,
+    zettaset_resolution: tuple[float, float, float] | None = None,
     zettaset_lookup: dict[str, str] | None = None,
     zettaset_padding: tuple[int, int, int] = (0, 0, 0),
     zettaset_mask: bool = True,
@@ -54,18 +59,20 @@ def load_sample(
 
     dset: dict[str, np.ndarray] = {}
 
-    # Image
-    if zettaset_padding == (0, 0, 0):
-        image_bbox = sample.bbox
-    else:
-        xyz_padding = tuple(reversed(zettaset_padding))
-        image_bbox = Bbox(
-            sample.bbox.minpt - xyz_padding, sample.bbox.maxpt + xyz_padding
-        )
+    # Bbox with padding
+    resolution = zettaset_resolution or sample.base_resolution
+    bbox = sample.bbox * (sample.base_resolution / np.array(resolution))
+    xyz_padding = (
+        tuple(reversed(zettaset_padding))
+        if zettaset_padding != (0, 0, 0)
+        else (0, 0, 0)
+    )
+    image_bbox = Bbox(bbox.minpt - xyz_padding, bbox.maxpt + xyz_padding)
 
+    # Image
     vol = CloudVolume(  # pylint: disable=unsubscriptable-object
         sample.src_image_path,
-        mip=sample.base_resolution,
+        mip=resolution,
         fill_missing=True,
         bounded=False,
     )[image_bbox.to_slices()]

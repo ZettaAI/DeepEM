@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from augmentor import Augment
-from dataprovider3 import DataProvider, Dataset
+from dataprovider3 import DataProvider, Dataset, DataSuperset
 
 
 def get_spec(
@@ -29,10 +29,11 @@ class Sampler(object):
         spec: dict[str, tuple[int, int, int]],
         is_train: bool,
         aug: Augment | None = None,
-        prob: dict[str, float] | None = None
+        prob: dict[str, float] | None = None,
+        zettaset_specs: dict[str, dict] | None = None,
     ):
         self.is_train = is_train
-        self.build(data, spec, aug, prob)
+        self.build(data, spec, aug, prob, zettaset_specs)
 
     def __call__(self) -> dict[str, np.ndarray]:
         sample = self.dataprovider()
@@ -55,31 +56,61 @@ class Sampler(object):
         self,
         data: dict[str, dict[str, np.ndarray]],
         spec: dict[str, tuple[int, int, int]],
-        aug: Augment | None,
-        prob: dict[str, float] | None
+        aug: Augment | None = None,
+        prob: dict[str, float] | None = None,
+        zettaset_specs: dict[str, dict] | None = None,
     ) -> None:
-        dp = DataProvider(spec)
-        keys = data.keys()
-        for key in keys:
-            dp.add_dataset(self.build_dataset(key, data[key], spec))
-        dp.set_augment(aug)
-        dp.set_imgs(["input"])
-        dp.set_segs(["affinity", "long_range", "embedding"])
-        prob = [prob[k] for k in keys] if prob is not None else prob
-        dp.set_sampling_weights(p=prob)
-        self.dataprovider = dp
-        print(dp)
+        """
+        Builds the data provider with datasets, augmentation, and sampling weights.
+        """
+        self.dataprovider = DataProvider(spec)
+
+         # Add datasets to the data provider
+        for key, value in data.items():
+            build_method = (
+                self.build_datasuperset
+                if zettaset_specs and key in zettaset_specs
+                else self.build_dataset
+            )
+            self.dataprovider.add_dataset(build_method(key, value, spec))
+
+        # Set augmentation, image types, and segmentation types
+        self.dataprovider.set_augment(aug)
+        self.dataprovider.set_imgs(["input"])
+        self.dataprovider.set_segs(["affinity", "long_range", "embedding"])
+
+        # Initialize sampling weights (even if prob is None)
+        sampling_weights = [prob[k] for k in data.keys()] if prob else None
+        self.dataprovider.set_sampling_weights(p=sampling_weights)
+
+        print(self.dataprovider)
+
+    def build_datasuperset(
+        self,
+        tag: str,
+        data: dict[str, dict[str, np.ndarray]],
+        spec: dict[str, tuple[int, int, int]],
+    ) -> DataSuperset:
+        """Create a DataSuperset from the given data."""
+        dset = DataSuperset(tag=tag)
+
+        # Add datasets to the DataSuperset
+        for key, value in data.items():
+            dset.add_dataset(self.build_dataset(key, value, spec))
+
+        return dset
 
     def build_dataset(
         self,
         tag: str,
         data: dict[str, np.ndarray],
-        spec: dict[str, tuple[int, int, int]]
+        spec: dict[str, tuple[int, int, int]],
     ) -> Dataset:
-        """Create a Dataset."""
+        """Create a Dataset from the given data and specification."""
         dset = Dataset(tag=tag)
 
-        for key in spec.keys():
+        # Iterate over the spec dictionary to add data and masks to the dataset
+        for key, _ in spec.items():
             if key.endswith("_mask"):
                 dset.add_mask(key=key, data=data[key], loc=True)
             else:

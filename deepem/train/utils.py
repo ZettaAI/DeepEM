@@ -1,4 +1,3 @@
-import imp
 import os
 import glob
 
@@ -9,6 +8,7 @@ import deepem.loss as loss
 from deepem.train.data import Data
 from deepem.train.model import Model, AmpModel
 from deepem.loss.utils import BinaryWeightBalancer
+from deepem.utils.py_utils import load_module
 
 
 def get_criteria(opt):
@@ -31,6 +31,7 @@ def get_criteria(opt):
             params['size_average'] = False
             criteria[k] = loss.AffinityLoss(edges,
                 criterion=getattr(loss, opt.loss)(**params),
+                split_boundary=not opt.no_split_boundary,
                 size_average=opt.size_average,
                 class_balancer=balancer,
             )
@@ -38,18 +39,29 @@ def get_criteria(opt):
             criteria[k] = getattr(loss, opt.metric_loss)(**opt.metric_params)
         else:
             params = dict(opt.loss_params)
+
+            if ('affinity' in opt.out_spec) or ('long_range' in opt.out_spec):
+                balancer = BinaryWeightBalancer(
+                    weight0=opt.class_weight1,
+                    weight1=opt.class_weight0,
+                ) if opt.class_balancing else None
+            params['class_balancer'] = balancer
+
             if opt.default_aux:
                 params['margin0'] = 0
                 params['margin1'] = 0
                 params['inverse'] = False
-            params['class_balancer'] = balancer
+                params['class_balancer'] = None
+
             criteria[k] = getattr(loss, 'BCELoss')(**params)
     return criteria
 
 
 def load_model(opt):
     # Create a model.
-    mod = imp.load_source('model', opt.model)
+
+    mod = load_module("model", opt.model)
+
     if opt.mixed_precision:
         model = AmpModel(mod.create_model(opt), get_criteria(opt), opt)
     else:
@@ -118,10 +130,13 @@ def save_chkpt(model, fpath, chkpt_num, optimizer):
 
 
 def load_data(opt):
-    mod = imp.load_source('data', opt.data)
     data_ids = list(set().union(opt.train_ids, opt.val_ids))
+    if opt.zettaset_specs:
+        from deepem.data.dataset import multi_zettaset as mod
+    else:
+        from deepem.data.dataset import zettaset as mod
     data = mod.load_data(
-        opt.zettaset_path,
+        opt.zettaset_specs if opt.zettaset_specs else opt.zettaset_path,
         data_ids=data_ids,
         **opt.data_params
     )

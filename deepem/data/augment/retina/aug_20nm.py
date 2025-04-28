@@ -34,25 +34,23 @@ def get_augmentation(
             brightness_factor=0.5,
             prob=1, skip=0.3))
 
-    # Missing section & misalignment
+    # Mutually-exclusive data augmentations
     to_blend = list()
-    # Misalingments
-    trans = Compose([Misalign((0, 5), margin=1),
-                     Misalign((0,15), margin=1),
-                     Misalign((0,25), margin=1)])
+    
+    # Step
+    step = Compose([Misalign((0, 5), margin=1),
+                    Misalign((0,15), margin=1),
+                    Misalign((0,25), margin=1)])
 
-    # Out-of-alignments
+    # Slip
     slip = Compose([SlipMisalign((0, 5), interp=True, margin=1),
                     SlipMisalign((0,15), interp=True, margin=1),
                     SlipMisalign((0,25), interp=True, margin=1)])
-    to_blend.append(Blend([trans,slip], props=[0.7,0.3]))
-    if is_train:
-        to_blend.append(Blend([
-            MisalignPlusMissing((3,15), value=0, random=random),
-            MisalignPlusMissing((3,15), value=0, random=False)
-        ]))
-    else:
-        to_blend.append(MisalignPlusMissing((3,15), value=0, random=False))
+    
+    # Step + slip
+    to_blend.append(Blend([step, slip], props=[0.7, 0.3]))
+
+    # Missing sections
     if missing > 0:
         if is_train:
             to_blend.append(Blend([
@@ -64,16 +62,25 @@ def get_augmentation(
             to_blend.append(
                 MixedMissingSection(maxsec=missing, individual=True, value=0, random=False)
             )
+    
+    # Lost sections
     if lost:
         if is_train:
-            to_blend.append(Blend([
-                LostSection(1),
-                LostPlusMissing(value=0, random=random),
-                LostPlusMissing(value=0, random=False)
-            ]))
+            to_blend.append(
+                Blend(
+                    [
+                        LostSection(1),
+                        LostSection(2),
+                        LostSection(3),
+                        LostPlusMissing(value=0, random=random),
+                        LostPlusMissing(value=0, random=False),
+                    ],
+                    props=[0.4, 0.3, 0.2, 0.05, 0.05],
+                )
+            )
     augs.append(Blend(to_blend))
 
-    # Out-of-focus
+    # Out-of-focus sections
     if blur > 0:
         augs.append(MixedBlurrySection(maxsec=blur))
 
@@ -81,15 +88,15 @@ def get_augmentation(
     if is_train:
         augs.append(Warp(skip=0.3, do_twist=False, rot_max=45.0, scale_max=1.1))
 
-    # Recompute connected components
-    if recompute:
-        augs.append(Label(targets=recompute))
-
     # Flip & rotate
     augs.append(FlipRotate())
 
     # Create border
     if border:
         augs.append(Border(targets=border))
+
+    # Recompute connected components
+    if recompute:
+        augs.append(Label(targets=recompute))
 
     return Compose(augs)

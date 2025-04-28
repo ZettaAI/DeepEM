@@ -7,15 +7,19 @@ from deepem.utils import torch_utils
 
 
 class EdgeSampler(object):
-    def __init__(self, edges):
+    def __init__(self, edges, split_boundary=True):
         self.edges = list(edges)
+        self.split_boundary = split_boundary
 
     def generate_edges(self):
         return list(self.edges)
 
     def generate_true_aff(self, obj, edge):
         o1, o2 = torch_utils.get_pair(obj, edge)
-        ret = ((o1 == o2) & (o1 != 0) & (o2 != 0))
+        if self.split_boundary:
+            ret = ((o1 == o2) & (o1 != 0) & (o2 != 0))
+        else:
+            ret = (o1 == o2)
         return ret.type(obj.type())
 
     def generate_mask_aff(self, mask, edge):
@@ -56,25 +60,12 @@ class EdgeCRF(nn.Module):
 
         return loss, nmsk
 
-    # def class_balancing(self, target, mask):
-    #     if not self.balancing:
-    #         return mask
-    #     dtype = mask.type()
-    #     m_int = mask * torch.eq(target, 1).type(dtype)
-    #     m_ext = mask * torch.eq(target, 0).type(dtype)
-    #     n_int = m_int.sum().item()
-    #     n_ext = m_ext.sum().item()
-    #     if n_int > 0 and n_ext > 0:
-    #         m_int *= n_ext/(n_int + n_ext)
-    #         m_ext *= n_int/(n_int + n_ext)
-    #     return (m_int + m_ext).type(dtype)
-
 
 class AffinityLoss(nn.Module):
-    def __init__(self, edges, criterion, size_average=False,
-                 class_balancer=None):
+    def __init__(self, edges, criterion, split_boundary=True,
+                 size_average=False, class_balancer=None):
         super(AffinityLoss, self).__init__()
-        self.sampler = EdgeSampler(edges)
+        self.sampler = EdgeSampler(edges, split_boundary=split_boundary)
         self.decoder = AffinityLoss.Decoder(edges)
         self.criterion = EdgeCRF(
             criterion,

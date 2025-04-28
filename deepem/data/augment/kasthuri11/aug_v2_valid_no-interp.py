@@ -1,7 +1,7 @@
 from augmentor import *
 
 
-def get_augmentation(is_train, recompute=False, grayscale=False, missing=0,
+def get_augmentation(is_train, recompute=[], grayscale=False, missing=0,
                      blur=0, warping=False, misalign=0, box=None, mip=0,
                      random=False, **kwargs):
     augs = list()
@@ -64,6 +64,6 @@ def get_augmentation(is_train, recompute=False, grayscale=False, missing=0,
 
     # Recompute connected components
     if recompute:
-        augs.append(Label())
+        augs.append(Label(targets=recompute))
 
     return Compose(augs)
