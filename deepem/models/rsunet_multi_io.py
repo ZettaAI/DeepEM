@@ -58,6 +58,7 @@ class OutputBlock(nn.Module):
 
     def forward(self, x):
         if self.onnx:
+            print("OutputBlock keys:", list(self.blocks.keys()))
             return tuple(m(x) for m in self.blocks.values())
         return {k: m(x) for k, m in self.blocks.items()}
 
