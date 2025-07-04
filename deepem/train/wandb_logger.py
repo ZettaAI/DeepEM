@@ -98,12 +98,17 @@ class WandbLogger:
                 vec = preds[key][[0],...].cpu()
                 vec = torch_utils.vec2pca(vec)
                 arr = self.to_array(vec.select(0, 0), padsz=padsz)
+            elif key in ["mitochondria_embedding"]:
+                # Mitochondria embedding
+                vec = preds[key][[0],...].cpu()
+                vec = torch_utils.vec2pca(vec)
+                arr = self.to_array(vec.select(0, 0), padsz=padsz)
             else:
                 arr = self.to_array(torch.sigmoid(preds[key]), padsz=padsz)
             logs.append(wandb.Image(arr, caption=f"{key} prediciton"))
 
             # Label
-            if key in ["affinity", "long_range", "embedding"]:
+            if key in ["affinity", "long_range", "embedding", "mitochondria_embedding"]:
                 seg = sample[key][0,0,...].cpu().numpy().astype('uint32')
                 rgb = torch.from_numpy(py_utils.seg2rgb(seg))
                 arr = self.to_array(rgb, padsz=padsz)

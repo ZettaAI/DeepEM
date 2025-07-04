@@ -171,6 +171,10 @@ class Options(object):
         self.parser.add_argument('--vec', type=float, default=0)
         self.parser.add_argument('--embed_dim', type=int, default=12)
 
+        # Mitochondria embedding
+        self.parser.add_argument('--mito_emb', type=float, default=0)
+        self.parser.add_argument('--mito_emb_dim', type=int, default=6)
+
         # Test training
         self.parser.add_argument('--test', action='store_true')
 
@@ -309,6 +313,7 @@ class Options(object):
             'ecs':  ('extracellular_space', 1),
             'other':  ('other_class', 1),
             'mito_to_cell': ('mitochondria_to_cell', 1),
+            'mito_emb': ('mitochondria_embedding', opt.mito_emb_dim),
         }
 
         semantic_mapping = {
