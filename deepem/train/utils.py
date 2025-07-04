@@ -37,6 +37,10 @@ def get_criteria(opt):
             )
         elif k == 'embedding':
             criteria[k] = getattr(loss, opt.metric_loss)(**opt.metric_params)
+        elif k == 'mitochondria_embedding':
+            params = dict(opt.metric_params)
+            params['mask_background'] = False
+            criteria[k] = getattr(loss, opt.metric_loss)(**params)
         else:
             params = dict(opt.loss_params)
 
