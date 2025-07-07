@@ -9,13 +9,12 @@ from deepem.models.layers import Conv, Crop, Scale
 def create_model(opt):
     width = opt.width if opt.width else [16, 32, 64, 128, 256, 512]
     depth = len(width) if opt.width else opt.depth
-    zfactor = [2] * (depth - 1)
     if opt.group > 0:
         # Group normalization
-        core = rsunet_act_gn(width=width[:depth], zfactor=zfactor, group=opt.group, act=opt.act)
+        core = rsunet_act_gn(width=width[:depth], group=opt.group, act=opt.act)
     else:
         # Batch normalization
-        core = rsunet_act_in(width=width[:depth], zfactor=zfactor, act=opt.act)
+        core = rsunet_act_in(width=width[:depth], act=opt.act)
     return Model(core, opt.in_spec, opt.out_spec, width[0], crop=opt.crop, onnx=opt.onnx,
                 scale_init=opt.scale_init, scale_factor=opt.updown_scale_factor)
 
@@ -108,7 +107,7 @@ class Model(nn.Sequential):
     """
     Residual Symmetric U-Net with down/upsampling for multiple inputs/outputs.
     """
-    def __init__(self, core, in_spec, out_spec, out_channels, io_kernel=(5, 5, 5),
+    def __init__(self, core, in_spec, out_spec, out_channels, io_kernel=(1, 5, 5),
                 crop=None, scale_init=1.0, scale_factor=(1, 2, 2), onnx=False):
         super().__init__()
 
