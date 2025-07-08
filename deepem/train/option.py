@@ -244,7 +244,7 @@ class Options(object):
         opt.metric_params['loss_scale_factor'] = opt.loss_scale_factor
 
         # Optimizer
-        if opt.optim == 'Adam':
+        if opt.optim in ['Adam', 'AdamW']:
             optim_keys = ['lr','betas','eps','amsgrad']
         elif opt.optim == 'SGD':
             optim_keys = ['lr','momentum']
