@@ -118,6 +118,16 @@ def train(opt):
                 else:
                     eval_loop(i+1, model, val_loader, opt, logger, wandb_logger)
 
+            # Frontier checkpoint (overwrites previous frontier)
+            if opt.chkpt_sync_intv is not None and (i+1) % opt.chkpt_sync_intv == 0:
+                if opt.parallel == "DDP":
+                    if dist.get_rank() == 0:
+                        model = revert_sync_batchnorm(model)
+                        save_frontier_chkpt(model.module, opt.model_dir, i+1, optimizer)
+                        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+                else:
+                    save_frontier_chkpt(model, opt.model_dir, i+1, optimizer)
+
             # Model checkpoint
             if (i+1) % opt.chkpt_intv == 0:
                 if opt.parallel == "DDP":

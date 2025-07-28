@@ -62,21 +62,24 @@ def get_criteria(opt):
 
 
 def load_model(opt):
-    # Create a model.
-
+    """Creates and loads a model based on options."""
+    # Create base model
     mod = load_module("model", opt.model)
+    model_class = AmpModel if opt.mixed_precision else Model
+    model = model_class(mod.create_model(opt), get_criteria(opt), opt)
 
-    if opt.mixed_precision:
-        model = AmpModel(mod.create_model(opt), get_criteria(opt), opt)
-    else:
-        model = Model(mod.create_model(opt), get_criteria(opt), opt)
-
+    # Load pretrained weights if specified
     if opt.pretrain:
         model.load(opt.pretrain)
-    if opt.chkpt_num == -1:
-        opt.chkpt_num = latest_chkpt(opt.model_dir)
-    if opt.chkpt_num > 0:
+
+    # Load checkpoint if specified
+    if opt.chkpt_num != 0:
         model = load_chkpt(model, opt.model_dir, opt.chkpt_num)
+        if opt.chkpt_num == -1:
+            chkpt_num, is_frontier = latest_chkpt(opt.model_dir)
+            if chkpt_num is not None:
+                opt.chkpt_num = chkpt_num
+                opt.loaded_from_frontier = is_frontier
 
     return model.train().cuda()
 
@@ -86,42 +89,65 @@ def load_optimizer(opt, trainable):
     optimizer = getattr(torch.optim, opt.optim)(trainable, **opt.optim_params)
 
     if not opt.pretrain and opt.chkpt_num > 0:
-        n = opt.chkpt_num
-        fname = os.path.join(opt.model_dir, f"model{n}.chkpt")
-        chkpt = torch.load(fname)
-        if 'optimizer' in chkpt:
-            print(f"LOAD OPTIM STATE: {n} iters.")
-            optimizer.load_state_dict(chkpt['optimizer'])
-            for state in optimizer.state.values():
-                for k, v in state.items():
-                    if isinstance(v, torch.Tensor):
-                        state[k] = v.cuda()
+        # Load optimizer state from the checkpoint we actually used
+        if hasattr(opt, 'loaded_from_frontier') and opt.loaded_from_frontier:
+            load_optimizer_state(optimizer, opt.model_dir, opt.chkpt_num, is_frontier=True)
+        else:
+            load_optimizer_state(optimizer, opt.model_dir, opt.chkpt_num, is_frontier=False)
 
     print(optimizer)
     return optimizer
 
 
 def load_chkpt(model, fpath, chkpt_num):
-    if chkpt_num == -1:
-        chkpt_num = latest_chkpt(fpath)
+    is_frontier = False
 
-    print(f"LOAD CHECKPOINT: {chkpt_num} iters.")
-    fname = os.path.join(fpath, f"model{chkpt_num}.chkpt")
+    if chkpt_num == -1:
+        chkpt_num, is_frontier = latest_chkpt(fpath)
+        if chkpt_num is None:
+            print("No checkpoints found, starting fresh")
+            return model
+
+    fname = os.path.join(fpath, "model_frontier.chkpt" if is_frontier else f"model{chkpt_num}.chkpt")
+    print(f"LOAD {'FRONTIER ' if is_frontier else ''}CHECKPOINT: {chkpt_num} iters.")
     model.load(fname)
     return model
 
 
 def latest_chkpt(fpath):
-    """Finds the checkpoint with the largest iteration number."""
+    """Finds the best checkpoint by comparing regular and frontier checkpoints."""
+    # Check frontier checkpoint first
+    frontier_fname = os.path.join(fpath, "model_frontier.chkpt")
+    frontier_iter = None
+    if os.path.exists(frontier_fname):
+        chkpt = torch.load(frontier_fname)
+        frontier_iter = chkpt['iter']
+
+    # Get regular checkpoint numbers (excluding frontier)
     modelfilenames = glob.glob(os.path.join(fpath, "model*.chkpt"))
+    # Remove frontier checkpoint from the list
+    if frontier_fname in modelfilenames:
+        modelfilenames.remove(frontier_fname)
 
     def chkpt_num_from_filename(f):
         b = os.path.basename(f)
-        return int(os.path.splitext(b)[0][5:])
+        filename = os.path.splitext(b)[0]
+        return int(filename[5:])
 
+    # Get regular checkpoint numbers
     chkpt_nums = [chkpt_num_from_filename(f) for f in modelfilenames]
+    latest_regular = max(chkpt_nums) if len(chkpt_nums) > 0 else None
 
-    return max(chkpt_nums) if len(chkpt_nums) > 0 else 0
+    # Compare and return the best checkpoint
+    if frontier_iter is None and latest_regular is None:
+        return None, False
+    if frontier_iter is None:
+        return latest_regular, False
+    if latest_regular is None:
+        return frontier_iter, True
+    if frontier_iter > latest_regular:
+        return frontier_iter, True
+    return latest_regular, False
 
 
 def save_chkpt(model, fpath, chkpt_num, optimizer):
@@ -131,6 +157,51 @@ def save_chkpt(model, fpath, chkpt_num, optimizer):
              'state_dict': model.state_dict(),
              'optimizer': optimizer.state_dict()}
     torch.save(state, fname)
+
+
+def save_frontier_chkpt(model, fpath, chkpt_num, optimizer):
+    """Save a frontier checkpoint that overwrites the previous frontier checkpoint."""
+    print(f"SAVE FRONTIER CHECKPOINT: {chkpt_num} iters.")
+    fname = os.path.join(fpath, "model_frontier.chkpt")
+    state = {'iter': chkpt_num,
+             'state_dict': model.state_dict(),
+             'optimizer': optimizer.state_dict()}
+    torch.save(state, fname)
+
+
+def load_frontier_chkpt(model, fpath):
+    """Load a frontier checkpoint."""
+    fname = os.path.join(fpath, "model_frontier.chkpt")
+    if os.path.exists(fname):
+        print(f"LOAD FRONTIER CHECKPOINT.")
+        model.load(fname)
+        chkpt = torch.load(fname)
+        return model, chkpt['iter']
+    else:
+        print(f"FRONTIER CHECKPOINT NOT FOUND: {fname}")
+        return model, 0
+
+
+def load_optimizer_state(optimizer, fpath, chkpt_num, is_frontier=False):
+    """Load optimizer state from checkpoint."""
+    if is_frontier:
+        fname = os.path.join(fpath, "model_frontier.chkpt")
+        if not os.path.exists(fname):
+            return
+        chkpt = torch.load(fname)
+        iter_num = chkpt.get('iter', 0)
+        print(f"LOAD FRONTIER OPTIM STATE: {iter_num} iters.")
+    else:
+        fname = os.path.join(fpath, f"model{chkpt_num}.chkpt")
+        chkpt = torch.load(fname)
+        print(f"LOAD OPTIM STATE: {chkpt_num} iters.")
+
+    if 'optimizer' in chkpt:
+        optimizer.load_state_dict(chkpt['optimizer'])
+        for state in optimizer.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.cuda()
 
 
 def load_data(opt, local_rank):

@@ -58,6 +58,7 @@ class Options(object):
         self.parser.add_argument('--imgs_intv', type=int, default=1000)
         self.parser.add_argument('--warm_up', type=int, default=100)
         self.parser.add_argument('--chkpt_intv', type=int, default=10000)
+        self.parser.add_argument('--chkpt_sync_intv', type=int, default=None)
         self.parser.add_argument('--chkpt_num', type=int, default=0)
         self.parser.add_argument('--no_eval', action='store_true')
         self.parser.add_argument('--pretrain', default=None)
