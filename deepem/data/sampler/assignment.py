@@ -87,8 +87,14 @@ class Sampler(object):
     def assignment_output(self, seg: np.ndarray, idx: int, i: int) -> np.ndarray:
         assert hasattr(self, "extras"), "no extra data found"
         presyn, postsyn = self.extras[idx][str(i)]
-
-        return np.concatenate((seg == presyn, seg == postsyn), axis=0)
+        n = len(presyn)
+        presyn_mask = seg == presyn[0]
+        postsyn_mask = seg == postsyn[0]
+        for i in range(1, n):
+            presyn_mask = presyn_mask*(seg==presyn[i])
+            postsyn_mask = postsyn_mask*(seg==postsyn[i])
+        
+        return np.concatenate((presyn_mask, postsyn_mask), axis=0)
 
     def build(
         self,
