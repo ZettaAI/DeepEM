@@ -8,13 +8,12 @@ RUN apt-get --allow-releaseinfo-change update && \
     git clone https://${GIT_ACCESS_TOKEN}@github.com/ZettaAI/zettasets.git && \
     rm -rf /var/lib/apt/lists/*
 
-FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-runtime
+FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+# FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-runtime
+ENV DEBIAN_FRONTEND=noninteractive
 
 COPY --from=intermediate /tmp/zettasets /tmp/zettasets
 
-# Set environment variables for non-interactive installation
-ENV DEBIAN_FRONTEND=noninteractive
-ENV DEBCONF_NONINTERACTIVE_SEEN=true
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -28,9 +27,11 @@ RUN apt-get update \
     && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg \
         | apt-key add - \
     && apt-get update \
-    && apt-get install -y google-cloud-cli \
+    && apt-get install google-cloud-cli -y \
     # handle imgaug issue
-    && apt-get install -y ffmpeg libsm6 libxext6 \
+    && apt-get install ffmpeg libsm6 libxext6 -y \
+    # Cleanup
+    && rm -rf /var/lib/apt/lists/* \
     # python requirements
     && conda install h5py cython matplotlib \
         scikit-image scikit-learn \
@@ -40,6 +41,7 @@ RUN apt-get update \
         numpy cloud-volume task-queue tensorboardX imgaug wandb \
     # github packages
     && pip install --no-cache-dir \
+        git+https://github.com/seung-lab/DataTools \
         git+https://github.com/ZettaAI/DataProvider3 \
         git+https://github.com/ZettaAI/Augmentor \
         git+https://github.com/seung-lab/pytorch-emvision \
