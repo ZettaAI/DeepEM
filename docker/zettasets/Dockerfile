@@ -40,7 +40,7 @@ RUN apt-get update \
     && conda clean -t -p \
     # pypi packages
     && pip install --no-cache-dir --upgrade \
-        numpy cloud-volume task-queue tensorboardX imgaug wandb \
+        numpy cloud-volume task-queue tensorboardX imgaug wandb simplejpeg==1.7.6 \
     # github packages
     && pip install --no-cache-dir \
         git+https://github.com/seung-lab/DataTools \
