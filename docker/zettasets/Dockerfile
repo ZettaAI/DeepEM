@@ -20,6 +20,8 @@ RUN apt-get update \
         build-essential git \
         # gcloud cli (for samwise)
         curl apt-transport-https ca-certificates gnupg \
+        # boost libraries for datatools compilation
+        libboost-all-dev \
     && rm -rf /var/lib/apt/lists/* \
     # gcloud cli (for samwise)
     && echo "deb https://packages.cloud.google.com/apt cloud-sdk main" \
@@ -51,7 +53,7 @@ RUN cd /tmp/zettasets && \
     pip install -e .
 
 RUN mkdir -p /workspace
-ENV PYTHONPATH=/DeepEM:${PYTHONPATH}
+ENV PYTHONPATH=/DeepEM:${PYTHONPATH:-}
 
 COPY . /DeepEM/
 WORKDIR /workspace
