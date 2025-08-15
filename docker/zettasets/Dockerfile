@@ -12,6 +12,10 @@ FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-runtime
 
 COPY --from=intermediate /tmp/zettasets /tmp/zettasets
 
+# Set environment variables for non-interactive installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBCONF_NONINTERACTIVE_SEEN=true
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential git \
@@ -23,9 +27,10 @@ RUN apt-get update \
         | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
     && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg \
         | apt-key add - \
-    && apt-get update && apt-get install google-cloud-cli \
+    && apt-get update \
+    && apt-get install -y google-cloud-cli \
     # handle imgaug issue
-    && apt-get install ffmpeg libsm6 libxext6 -y \
+    && apt-get install -y ffmpeg libsm6 libxext6 \
     # python requirements
     && conda install h5py cython matplotlib \
         scikit-image scikit-learn \
@@ -44,7 +49,7 @@ RUN cd /tmp/zettasets && \
     pip install -e .
 
 RUN mkdir -p /workspace
-ENV PYTHONPATH /DeepEM:${PYTHONPATH}
+ENV PYTHONPATH=/DeepEM:${PYTHONPATH}
 
 COPY . /DeepEM/
 WORKDIR /workspace
