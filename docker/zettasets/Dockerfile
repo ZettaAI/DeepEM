@@ -41,7 +41,7 @@ RUN apt-get update \
     # pypi packages
     && pip install git+https://github.com/ZettaAI/cirrus-volume \
     && pip install --no-cache-dir --upgrade \
-        numpy==1.26.0 cloud-volume task-queue tensorboardX imgaug wandb simplejpeg==1.7.6 imagecodecs \
+        numpy==1.26.0 cloud-volume task-queue tensorboardX imgaug wandb simplejpeg==1.7.6 imagecodecs onnx \
     
     # github packages
     && pip install --no-cache-dir \
