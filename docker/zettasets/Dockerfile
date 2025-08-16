@@ -39,8 +39,10 @@ RUN apt-get update \
         scikit-image scikit-learn \
     && conda clean -t -p \
     # pypi packages
+    && pip install git+https://github.com/ZettaAI/cirrus-volume \
     && pip install --no-cache-dir --upgrade \
         numpy cloud-volume task-queue tensorboardX imgaug wandb simplejpeg==1.7.6 \
+    
     # github packages
     && pip install --no-cache-dir \
         git+https://github.com/seung-lab/DataTools \
@@ -53,7 +55,7 @@ RUN cd /tmp/zettasets && \
     pip install -e .
 
 RUN mkdir -p /workspace
-ENV PYTHONPATH=/DeepEM:${PYTHONPATH:-}
+ENV PYTHONPATH=/DeepEM:${PYTHONPATH}
 
 COPY . /DeepEM/
 WORKDIR /workspace
