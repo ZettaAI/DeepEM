@@ -91,8 +91,8 @@ class Sampler(object):
         presyn_mask = seg == presyn[0]
         postsyn_mask = seg == postsyn[0]
         for i in range(1, n):
-            presyn_mask = presyn_mask*(seg==presyn[i])
-            postsyn_mask = postsyn_mask*(seg==postsyn[i])
+            presyn_mask = presyn_mask+(seg==presyn[i])
+            postsyn_mask = postsyn_mask+(seg==postsyn[i])
         
         return np.concatenate((presyn_mask, postsyn_mask), axis=0)
 
