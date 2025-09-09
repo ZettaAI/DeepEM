@@ -21,6 +21,7 @@ class Model(nn.Module):
         self.scan_spec = dict(opt.scan_spec)
         self.pretrain = opt.pretrain
         self.force_crop = opt.force_crop
+        self.merge_classes = opt.merge_classes
 
         # Softer softmax
         if opt.temperature is None:
@@ -119,15 +120,25 @@ class OnnxModel(Model):
 
     def forward(self, x):
         preds = self.model(x)  # Already returns tuple in ONNX mode
+
         # Apply sigmoid to non-embedding predictions
         processed_preds = []
+        merge_list = []
         for pred, key in zip(preds, self.scan_spec.keys()):
             if key != 'embedding':
                 if pred.dtype == torch.float16:
                     pred = pred.float().sigmoid().half()
                 else:
                     pred = pred.sigmoid()
-            processed_preds.append(pred)
+            if key in self.merge_classes:
+                merge_list.append(pred)
+            else:
+                processed_preds.append(pred)
+
+        if len(merge_list) > 0:
+            merged = torch.max(torch.stack(merge_list, dim=0), dim=0).values
+            processed_preds.append(merged)
+
         # Return single tensor directly if only one prediction
         if len(processed_preds) == 1:
             return processed_preds[0]

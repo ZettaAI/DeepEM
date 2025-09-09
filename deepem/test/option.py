@@ -70,6 +70,7 @@ class Options(object):
         self.parser.add_argument('--glia', action='store_true')
         self.parser.add_argument('--sem',  action='store_true')
         self.parser.add_argument('--img',  action='store_true')
+        self.parser.add_argument('--merge_classes', type=str, default=[], nargs='+')
 
         # Semantic segmentation
         self.parser.add_argument('--semantic', action='store_true')
