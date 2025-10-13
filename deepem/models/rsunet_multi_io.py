@@ -11,7 +11,7 @@ def create_model(opt):
     depth = len(width) if opt.width else opt.depth
     if opt.group > 0:
         # Group normalization
-        core = rsunet_act_gn(width=width[:depth], group=opt.group, act=opt.act)
+        core = rsunet_act_gn(width=width[:depth], group=opt.group, eps=opt.group_eps, act=opt.act)
     else:
         # Instance normalization
         core = rsunet_act_in(width=width[:depth], act=opt.act)
