@@ -12,7 +12,7 @@ def create_model(opt):
     zfactor = [2] * (depth - 1)
     if opt.group > 0:
         # Group normalization
-        core = rsunet_act_gn(width=width[:depth], zfactor=zfactor, group=opt.group, act=opt.act)
+        core = rsunet_act_gn(width=width[:depth], zfactor=zfactor, group=opt.group, eps=opt.group_eps, act=opt.act)
     else:
         # Instance normalization
         core = rsunet_act_in(width=width[:depth], zfactor=zfactor, act=opt.act)

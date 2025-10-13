@@ -109,6 +109,7 @@ class Options(object):
         self.parser.add_argument('--depth', type=int, default=4)
         self.parser.add_argument('--width', type=int, default=None, nargs='+')
         self.parser.add_argument('--group', type=int, default=0)
+        self.parser.add_argument('--group_eps', type=float, default=1e-5)
         self.parser.add_argument('--act', default='ReLU')
         self.parser.add_argument('--updown_scale_factor', type=vec3f, default=None)
 
