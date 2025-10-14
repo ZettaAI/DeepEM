@@ -19,17 +19,30 @@ class WandbLogger:
     Weight & Biases Logger.
     """
 
-    def __init__(
-        self,
-        opt: argparse.Namespace,
-    ):
+    def __init__(self, opt: argparse.Namespace):
         self.opt = opt
         self.in_spec = dict(opt.in_spec)
         self.out_spec = dict(opt.out_spec)
         self.pad_output = getattr(opt, 'wandb_pad_output', False)
 
-        # WandB login
-        if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
+        # Determine if this is a non-main DDP rank
+        self._is_ddp_worker = (
+            getattr(opt, "parallel", None) == "DDP"
+            and dist.is_available()
+            and dist.is_initialized()
+            and dist.get_rank() > 0
+        )
+
+        if self._is_ddp_worker:
+            # Hard disable W&B on workers to avoid any API and background threads
+            os.environ["WANDB_MODE"] = "disabled"
+            os.environ["WANDB_SILENT"] = "true"
+            os.environ["WANDB_DISABLE_CODE"] = "true"
+            self._enabled = False
+            return
+
+        # Main rank only from here
+        if os.environ.get("WANDB_MODE") != "offline":
             api_key = os.environ.get("WANDB_API_KEY", None)
             wandb.login(key=api_key)
 
@@ -39,8 +52,13 @@ class WandbLogger:
             name=opt.exp_name,
             resume="allow",
             id=opt.exp_name,
+            # settings=wandb.Settings(
+            #     start_method="thread",
+            #     _disable_stats=True  # optional: reduce background metrics chatter
+            # ),
         )
         wandb.config.update(opt, allow_val_change=True)
+        self._enabled = True
 
     def __enter__(self) -> None:
         return self
@@ -51,14 +69,15 @@ class WandbLogger:
         exc_value: BaseException | None,
         exc_traceback: TracebackType | None,
     ) -> None:
-        wandb.finish()
+        if getattr(self, "_enabled", False):
+            wandb.finish()
 
     def log_metrics(self,
         phase: str,
         iter_num: int,
         stats: dict[str, float],
     ) -> None:
-        if self.opt.parallel == "DDP" and dist.get_rank() > 0:
+        if not getattr(self, "_enabled", False):
             return
         wandb.log(
             {f"{phase}/{metric}": value for metric, value in stats.items()},
@@ -72,7 +91,7 @@ class WandbLogger:
         sample: dict[str, torch.Tensor],
     ) -> None:
         """Log 3D images."""
-        if self.opt.parallel == "DDP" and dist.get_rank() > 0:
+        if not getattr(self, "_enabled", False):
             return
         # Get reference sizes
         out_key = sorted(self.out_spec)[0]
