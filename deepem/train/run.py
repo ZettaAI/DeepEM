@@ -64,9 +64,12 @@ def train(opt):
     with Logger(opt) as logger, WandbLogger(opt) as wandb_logger:
 
         # Timer
-        t0 = time.time()
+        start = torch.cuda.Event(enable_timing=True)
+        end   = torch.cuda.Event(enable_timing=True)
 
         for i in range(opt.chkpt_num, opt.max_iter):
+
+            start.record()  # on current stream
 
             # Load training samples.
             sample = train_loader()
@@ -94,10 +97,19 @@ def train(opt):
                 optimizer.step()
 
             # Elapsed time
-            elapsed = time.time() - t0
+            end.record()
+            end.synchronize()  # waits only for work up to `end` on this stream
+            elapsed = start.elapsed_time(end) / 1000.0
+
+            if opt.parallel == "DDP":
+                t = torch.tensor([elapsed], device="cuda")
+                dist.all_reduce(t, op=dist.ReduceOp.MAX)
+                elapsed_max = t.item()
+            else:
+                elapsed_max = elapsed
 
             # Record keeping
-            logger.record('train', losses, nmasks, elapsed=elapsed)
+            logger.record('train', losses, nmasks, elapsed=elapsed, elapsed_max=elapsed_max)
 
             # Log & display averaged stats.
             if (i+1) % opt.avgs_intv == 0 or i < opt.warm_up:
@@ -141,9 +153,6 @@ def train(opt):
                     save_chkpt(model, opt.model_dir, i+1, optimizer)
                     if opt.export_onnx:
                         export_onnx(opt, i+1)
-
-            # Reset timer.
-            t0 = time.time()
 
 
 def eval_loop(iter_num, model, data_loader, opt, logger, wandb_logger):
