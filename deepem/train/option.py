@@ -62,6 +62,7 @@ class Options(object):
         self.parser.add_argument('--chkpt_num', type=int, default=0)
         self.parser.add_argument('--no_eval', action='store_true')
         self.parser.add_argument('--pretrain', default=None)
+        self.parser.add_argument('--grad_accum_steps', type=int, default=1)
 
         # WandB logging
         self.parser.add_argument('--wandb_pad_output', action='store_true')
