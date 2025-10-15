@@ -26,6 +26,8 @@ def cleanup_distributed():
 
 
 def train(opt):
+    assert not (opt.size_average and opt.grad_accum_steps > 1), \
+        "size_average and grad_accum_steps > 1 are not supported"
     # Model
     if opt.parallel == "DDP":
         # Make sure samewise finished syncing files
