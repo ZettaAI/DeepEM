@@ -1,6 +1,7 @@
 import os
 import time
 
+from collections import defaultdict
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -25,6 +26,8 @@ def cleanup_distributed():
 
 
 def train(opt):
+    assert not (opt.size_average and opt.grad_accum_steps > 1), \
+        "size_average and grad_accum_steps > 1 are not supported"
     # Model
     if opt.parallel == "DDP":
         # Make sure samewise finished syncing files
@@ -66,8 +69,11 @@ def train(opt):
         # Timer
         t0 = time.time()
 
-        for i in range(opt.chkpt_num, opt.max_iter):
+        grad_accum_steps = opt.grad_accum_steps
+        accum_losses = defaultdict(float)
+        accum_nmasks = defaultdict(float)
 
+        for i in range(opt.chkpt_num, opt.max_iter):
             # Load training samples.
             sample = train_loader()
 
@@ -81,23 +87,48 @@ def train(opt):
                     losses, nmasks, preds = forward(model, sample, opt)
                     total_loss = sum([w*losses[k] for k, w in opt.loss_weight.items()])
                 # Backward passes under autocast are not recommended.
-                scaler.scale(total_loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-                losses = {k: v.float() for k, v in losses.items()}
-                nmasks = {k: v.float() for k, v in nmasks.items()}
-                preds  = {k: v.float() for k, v in preds.items()}
+                scaler.scale(total_loss / grad_accum_steps).backward()
             else:
                 losses, nmasks, preds = forward(model, sample, opt)
-                total_loss = sum([w*losses[k] for k, w in opt.loss_weight.items()])
-                total_loss.backward()
+                total_loss = sum([w * losses[k] for k, w in opt.loss_weight.items()])
+                (total_loss / grad_accum_steps).backward()
+
+            # Accumulate metrics for logging
+            with torch.no_grad():
+                for k, v in losses.items():
+                    accum_losses[k] += v
+                for k, v in nmasks.items():
+                    accum_nmasks[k] += v
+
+            if ((i - opt.chkpt_num) + 1) % grad_accum_steps != 0:
+                continue
+
+            # --- From here on, code only runs on optimizer step ---
+            if opt.mixed_precision:
+                scaler.step(optimizer)
+                scaler.update()
+            else:
                 optimizer.step()
+
+            # Average accumulated losses
+            avg_losses = {k: v / grad_accum_steps for k, v in accum_losses.items()}
+            avg_nmasks = {k: v / grad_accum_steps for k, v in accum_nmasks.items()}
+
+            if opt.mixed_precision:
+                avg_losses = {k: v.float() for k, v in avg_losses.items()}
+                avg_nmasks = {k: v.float() for k, v in avg_nmasks.items()}
+                preds = {k: v.float() for k, v in preds.items()}
+
 
             # Elapsed time
             elapsed = time.time() - t0
 
             # Record keeping
-            logger.record('train', losses, nmasks, elapsed=elapsed)
+            logger.record("train", avg_losses, avg_nmasks, elapsed=elapsed)
+
+            # Reset accumulators
+            accum_losses = defaultdict(float)
+            accum_nmasks = defaultdict(float)
 
             # Log & display averaged stats.
             if (i+1) % opt.avgs_intv == 0 or i < opt.warm_up:
