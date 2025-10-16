@@ -204,7 +204,16 @@ if __name__ == "__main__":
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(opt.gpu_ids)
 
     # Make directories.
-    if opt.parallel == "DDP" and dist.get_rank() == 0:
+    if opt.parallel == "DDP":
+        if dist.get_rank() == 0:
+            if not os.path.isdir(opt.exp_dir):
+                os.makedirs(opt.exp_dir)
+            if not os.path.isdir(opt.log_dir):
+                os.makedirs(opt.log_dir)
+            if not os.path.isdir(opt.model_dir):
+                os.makedirs(opt.model_dir)
+    else:
+        # For non-DDP modes, create directories on all processes
         if not os.path.isdir(opt.exp_dir):
             os.makedirs(opt.exp_dir)
         if not os.path.isdir(opt.log_dir):
