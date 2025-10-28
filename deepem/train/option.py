@@ -181,7 +181,7 @@ class Options(object):
         self.parser.add_argument('--test', action='store_true')
 
         # Mixed-precision training
-        self.parser.add_argument('--mixed_precision', action='store_true')
+        self.parser.add_argument('--mixed_precision', type=str, default=None, choices=['fp16', 'bf16'])
 
         # Export to ONNX
         self.parser.add_argument('--export_onnx', action='store_true')

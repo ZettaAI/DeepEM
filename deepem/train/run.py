@@ -56,7 +56,8 @@ def train(opt):
         save_chkpt(model, opt.model_dir, opt.chkpt_num, optimizer)
 
     # Mixed-precision training
-    if opt.mixed_precision:
+    scaler = None
+    if opt.mixed_precision == 'fp16':
         scaler = torch.cuda.amp.GradScaler()
 
     # Training loop
@@ -80,13 +81,20 @@ def train(opt):
 
             # Optimizer step
             if opt.mixed_precision:
-                with torch.cuda.amp.autocast():
+                dtype = torch.bfloat16 if opt.mixed_precision == 'bf16' else torch.float16
+                with torch.cuda.amp.autocast(dtype=dtype):
                     losses, nmasks, preds = forward(model, sample, opt)
                     total_loss = sum([w*losses[k] for k, w in opt.loss_weight.items()])
-                # Backward passes under autocast are not recommended.
-                scaler.scale(total_loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
+
+                if opt.mixed_precision == 'fp16':
+                    # Backward passes under autocast are not recommended.
+                    scaler.scale(total_loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:  # bf16
+                    total_loss.backward()
+                    optimizer.step()
+
                 losses = {k: v.float() for k, v in losses.items()}
                 nmasks = {k: v.float() for k, v in nmasks.items()}
                 preds  = {k: v.float() for k, v in preds.items()}
@@ -166,7 +174,8 @@ def eval_loop(iter_num, model, data_loader, opt, logger, wandb_logger):
         for i in range(opt.eval_iter):
             sample = data_loader()
             if opt.mixed_precision:
-                with torch.cuda.amp.autocast():
+                dtype = torch.bfloat16 if opt.mixed_precision == 'bf16' else torch.float16
+                with torch.cuda.amp.autocast(dtype=dtype):
                     losses, nmasks, preds = forward(model, sample, opt)
                 losses = {k: v.float() for k, v in losses.items()}
                 nmasks = {k: v.float() for k, v in nmasks.items()}

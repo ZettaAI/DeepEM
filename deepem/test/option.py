@@ -143,7 +143,7 @@ class Options(object):
         self.parser.add_argument('--dummy_inputsz', type=int, default=[128,1024,1024], nargs='+')
 
         # Mixed-precision inference
-        self.parser.add_argument('--mixed_precision', action='store_true')
+        self.parser.add_argument('--mixed_precision', type=str, default=None, choices=['fp16', 'bf16'])
 
         # Export to ONNX
         self.parser.add_argument('--onnx', action='store_true')
