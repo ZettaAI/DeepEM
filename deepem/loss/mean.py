@@ -146,6 +146,10 @@ class MeanLoss(nn.Module):
         loss_nrm = self.compute_loss_nrm(means, device)
 
         loss = (self.alpha * loss_int) + (self.beta * loss_ext) + (self.gamma * loss_nrm)
+        # Only handle the empty case. Keep loss intact otherwise.
+        if not vecs:
+            # Graph-connected zero during training. Safe no-op during eval.
+            loss = (embd * mask).sum() * 0
         return loss, nmsk
 
     def compute_loss_int(

@@ -21,29 +21,32 @@ class BCELoss(nn.Module):
 
     def forward(self, input, target, mask):
         # Number of valid voxels
-        nmsk = (mask > 0).type(mask.dtype).sum()
+        nmsk = (mask > 0).to(dtype=mask.dtype).sum()
         assert nmsk.item() >= 0
         if nmsk.item() == 0:
-            loss = torch.tensor(0).type(torch.cuda.FloatTensor)
-            return loss, nmsk
+            # Return a graph-connected zero on the right device/dtype
+            zero = (input * mask).sum()
+            return zero, nmsk
 
         # Class balancing
         if self.balancer is not None:
             mask = self.balancer(target, mask)
 
         # Margin
+        tgt = target
         m0, m1 = self.margin0, self.margin1
         if m0 > 0 or m1 > 0:
             if self.inverse:
-                target[torch.eq(target, 1)] = 1 - m1
-                target[torch.eq(target, 0)] = m0
+                tgt = target.clone()
+                tgt[torch.eq(target, 1)] = 1 - m1
+                tgt[torch.eq(target, 0)] = m0
             else:
                 activ = torch.sigmoid(input)
                 m_int = torch.ge(activ, 1 - m1) * torch.eq(target, 1)
                 m_ext = torch.le(activ, m0) * torch.eq(target, 0)
                 mask *= 1 - (m_int + m_ext).type(mask.dtype)
 
-        loss = self.bce(input, target, weight=mask, reduction='sum')
+        loss = self.bce(input, tgt, weight=mask, reduction='sum')
 
         if self.size_average:
             loss = loss / nmsk.item()
@@ -68,11 +71,12 @@ class MSELoss(nn.Module):
 
     def forward(self, input, target, mask):
         # Number of valid voxels
-        nmsk = (mask > 0).type(mask.type()).sum()
+        nmsk = (mask > 0).to(dtype=mask.dtype).sum()
         assert nmsk.item() >= 0
         if nmsk.item() == 0:
-            loss = torch.tensor(0).type(torch.cuda.FloatTensor)
-            return loss, nmsk
+            # Return a graph-connected zero on the right device/dtype
+            zero = (input * mask).sum()
+            return zero, nmsk
 
         # Class balancing
         if self.balancer is not None:
