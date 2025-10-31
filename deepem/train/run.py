@@ -24,6 +24,26 @@ def cleanup_distributed():
     dist.destroy_process_group()
 
 
+# Always touch the computation graph from model outputs
+# so DDP buckets close even if this rank has no valid voxels
+def _sum_tensors(x):
+    if torch.is_tensor(x):
+        return x.sum()
+    if isinstance(x, (list, tuple)):
+        s = None
+        for t in x:
+            v = _sum_tensors(t)
+            s = v if s is None else s + v
+        return s if s is not None else torch.zeros([], device=next(model.parameters()).device)
+    if isinstance(x, dict):
+        s = None
+        for t in x.values():
+            v = _sum_tensors(t)
+            s = v if s is None else s + v
+        return s if s is not None else torch.zeros([], device=next(model.parameters()).device)
+    return torch.zeros([], device=next(model.parameters()).device)
+
+
 def train(opt):
     # Model
     if opt.parallel == "DDP":
@@ -34,7 +54,12 @@ def train(opt):
         model = load_model(opt)
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = model.cuda(local_rank)  # Move model to the corresponding GPU
-        model = DDP(model, device_ids=[local_rank])  # Wrap model with DDP
+        model = DDP(  # Wrap model with DDP
+            model,
+            device_ids=[local_rank],
+            output_device=local_rank,
+            find_unused_parameters=True,  # allow per-step unused heads
+        )
     else:
         local_rank = None
         model = load_model(opt)
@@ -85,6 +110,9 @@ def train(opt):
                 with torch.cuda.amp.autocast(dtype=dtype):
                     losses, nmasks, preds = forward(model, sample, opt)
                     total_loss = sum([w*losses[k] for k, w in opt.loss_weight.items()])
+                    touch = _sum_tensors(preds)
+                    if touch is not None:
+                        total_loss = total_loss + touch * 0.0
 
                 if opt.mixed_precision == 'fp16':
                     # Backward passes under autocast are not recommended.
@@ -101,6 +129,9 @@ def train(opt):
             else:
                 losses, nmasks, preds = forward(model, sample, opt)
                 total_loss = sum([w*losses[k] for k, w in opt.loss_weight.items()])
+                touch = _sum_tensors(preds)
+                if touch is not None:
+                    total_loss = total_loss + touch * 0.0
                 total_loss.backward()
                 optimizer.step()
 
