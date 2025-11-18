@@ -45,9 +45,8 @@ class InputBlock(nn.Module):
 
 
 class OutputBlock(nn.Module):
-    def __init__(self, in_channels, out_spec, kernel_size, onnx=False, scale_init=1.0):
+    def __init__(self, in_channels, out_spec, kernel_size,scale_init=1.0):
         super().__init__()
-        self.onnx = onnx
         self.blocks = nn.ModuleDict({
             k: (nn.Sequential(
                 Conv(in_channels, v[-4], kernel_size, bias=True),
@@ -58,9 +57,6 @@ class OutputBlock(nn.Module):
         })
 
     def forward(self, x):
-        if self.onnx:
-            print("OutputBlock keys:", list(self.blocks.keys()))
-            return tuple(m(x) for m in self.blocks.values())
         return {k: m(x) for k, m in self.blocks.items()}
 
 
@@ -85,7 +81,8 @@ class DownBlock(nn.Module):
 
 
 class UpBlock(nn.Module):
-    def __init__(self, out_spec, size):
+    def __init__(self, out_spec, size, onnx=False):
+        self.onnx = onnx
         super().__init__()
         self.blocks = nn.ModuleDict({
             k: nn.Upsample(
@@ -96,13 +93,10 @@ class UpBlock(nn.Module):
         })
 
     def forward(self, x):
-        # Handle dictionary input
-        if isinstance(x, dict):
-            return {k: block(x[k]) for k, block in self.blocks.items()}
-
-        # Handle tuple input
-        assert len(x) == len(self.blocks), f"Expected {len(self.blocks)} inputs, got {len(x)}"
-        return {k: block(xi) for (k, block), xi in zip(self.blocks.items(), x)}
+        if self.onnx:
+            print("UpBlock keys:", list(self.blocks.keys()))
+            return tuple(block(x[k]) for k, block in self.blocks.items())
+        return {k: block(x[k]) for k, block in self.blocks.items()}
 
 
 class Model(nn.Sequential):
@@ -123,7 +117,7 @@ class Model(nn.Sequential):
         self.add_module('down', DownBlock(size=new_size))
         self.add_module('in', InputBlock(in_spec, out_channels, io_kernel))
         self.add_module('core', core)
-        self.add_module('out', OutputBlock(out_channels, out_spec, io_kernel, onnx=onnx, scale_init=scale_init))
-        self.add_module('up', UpBlock(out_spec, size=in_size))
+        self.add_module('out', OutputBlock(out_channels, out_spec, io_kernel, scale_init=scale_init))
+        self.add_module('up', UpBlock(out_spec, size=in_size, onnx=onnx))
         if crop is not None:
-            self.add_module('crop', Crop(crop)) 
+            self.add_module('crop', Crop(crop))
