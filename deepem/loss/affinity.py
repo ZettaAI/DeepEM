@@ -34,15 +34,30 @@ class EdgeCRF(nn.Module):
         self.size_average = size_average
         self.class_balancer = class_balancer
 
-    def forward(self, preds, targets, masks):
+    def forward(self, preds, targets, masks, edges=None):
+        """
+        Args:
+            preds: List of predictions per edge
+            targets: List of targets per edge
+            masks: List of masks per edge
+            edges: Optional list of edge tuples for channel mapping
+        """
         assert len(preds) == len(targets) == len(masks)
         loss, nmsk = 0, 0
-        for pred, target, mask in zip(preds, targets, masks):
-            if self.class_balancer is not None:
+
+        for i, (pred, target, mask) in enumerate(zip(preds, targets, masks)):
+            # Apply directional class balancing if edges provided
+            if self.class_balancer is not None and edges is not None:
+                channel = self._edge_to_channel(edges[i])
+                mask = self.class_balancer(target, mask, channel=channel)
+            elif self.class_balancer is not None:
+                # Backward compatibility: no edges provided
                 mask = self.class_balancer(target, mask)
+
             l, n = self.criterion(pred, target, mask)
             loss += l
             nmsk += n
+
         assert nmsk.item() >= 0
 
         if nmsk.item() == 0:
@@ -60,6 +75,27 @@ class EdgeCRF(nn.Module):
 
         return loss, nmsk
 
+    def _edge_to_channel(self, edge):
+        """Map edge tuple to channel index for weight ordering.
+
+        Args:
+            edge: Edge tuple in (z, y, x) format
+
+        Returns:
+            Channel index: 0 for x, 1 for y, 2 for z
+        """
+        # Find which dimension the edge spans
+        edge_tuple = tuple(edge)
+        if edge_tuple[-1] != 0:  # x-dimension
+            return 0
+        elif edge_tuple[-2] != 0:  # y-dimension
+            return 1
+        elif edge_tuple[-3] != 0:  # z-dimension
+            return 2
+        else:
+            # Shouldn't happen with valid edges
+            return 0
+
 
 class AffinityLoss(nn.Module):
     def __init__(self, edges, criterion, split_boundary=True,
@@ -67,6 +103,7 @@ class AffinityLoss(nn.Module):
         super(AffinityLoss, self).__init__()
         self.sampler = EdgeSampler(edges, split_boundary=split_boundary)
         self.decoder = AffinityLoss.Decoder(edges)
+        self.edges = edges  # Store edges for passing to EdgeCRF
         self.criterion = EdgeCRF(
             criterion,
             size_average=size_average,
@@ -85,7 +122,8 @@ class AffinityLoss(nn.Module):
                 mask_affs.append(self.sampler.generate_mask_aff(mask, edge))
             except:
                 raise
-        return self.criterion(pred_affs, true_affs, mask_affs)
+        # Pass edges to criterion for channel mapping
+        return self.criterion(pred_affs, true_affs, mask_affs, edges=edges)
 
     class Decoder(nn.Module):
         def __init__(self, edges):

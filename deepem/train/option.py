@@ -7,6 +7,30 @@ import samwise
 from deepem.utils.py_utils import vec3, vec3f
 
 
+def parse_class_weight(value):
+    """Parse class weight as either scalar or comma-separated list.
+
+    Args:
+        value: String value from command line (e.g., "0.9" or "0.9,0.9,0.75")
+
+    Returns:
+        float or list of 3 floats
+
+    Raises:
+        ValueError: If format is invalid or list doesn't have exactly 3 values
+    """
+    if ',' in value:
+        weights = [float(w.strip()) for w in value.split(',')]
+        if len(weights) != 3:
+            raise ValueError(
+                f"Directional class weights must have exactly 3 values (x,y,z), "
+                f"got {len(weights)}"
+            )
+        return weights
+    else:
+        return float(value)
+
+
 class Options(object):
     """
     Training options.
@@ -74,8 +98,8 @@ class Options(object):
         self.parser.add_argument('--margin1', type=float, default=0)
         self.parser.add_argument('--inverse', action='store_true')
         self.parser.add_argument('--class_balancing', action='store_true')
-        self.parser.add_argument('--class_weight0', type=float, default=None)
-        self.parser.add_argument('--class_weight1', type=float, default=None)
+        self.parser.add_argument('--class_weight0', type=parse_class_weight, default=None)
+        self.parser.add_argument('--class_weight1', type=parse_class_weight, default=None)
         self.parser.add_argument('--default_aux', action='store_true')
 
         # Mean-based loss

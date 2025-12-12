@@ -45,10 +45,15 @@ def get_criteria(opt):
             params = dict(opt.loss_params)
 
             if ('affinity' in opt.out_spec) or ('long_range' in opt.out_spec):
-                balancer = BinaryWeightBalancer(
-                    weight0=opt.class_weight1,
-                    weight1=opt.class_weight0,
-                ) if opt.class_balancing else None
+                # Auxiliary outputs use inverted weights
+                # If directional weights provided, skip class balancing for auxiliary
+                if isinstance(opt.class_weight0, list) or isinstance(opt.class_weight1, list):
+                    balancer = None  # No class balancing for auxiliary with directional weights
+                else:
+                    balancer = BinaryWeightBalancer(
+                        weight0=opt.class_weight1,
+                        weight1=opt.class_weight0,
+                    ) if opt.class_balancing else None
             params['class_balancer'] = balancer
 
             if opt.default_aux:
