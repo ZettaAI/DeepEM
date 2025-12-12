@@ -3,9 +3,30 @@ from __future__ import annotations
 from cloudvolume import CloudVolume, Bbox
 import numpy as np
 from numpy.typing import ArrayLike
+import re
 
 from zettasets.dataset import Dataset as Zettaset
 from zettasets.sample import Sample
+
+
+def parse_target_combination(target_spec: str) -> list[str]:
+    """
+    Parse a target specification that may contain combinations.
+
+    Examples:
+        "mye" -> ["mye"]
+        "mye + ecs" -> ["mye", "ecs"]
+        "a+b+c" -> ["a", "b", "c"]
+
+    Args:
+        target_spec: Target specification string
+
+    Returns:
+        List of individual target keys
+    """
+    # Split by '+' and strip whitespace
+    targets = [t.strip() for t in target_spec.split('+')]
+    return targets
 
 
 def load_data(
@@ -85,23 +106,47 @@ def load_sample(
         zettaset_lookup = {x: x for x in sample.annotation_names}
 
     # Annotations
-    for name, key in zettaset_lookup.items():
+    for name, key_spec in zettaset_lookup.items():
 
-        # Annotation
-        vol = sample.read(key)[key]
-        dset[name] = convert_array(vol)
-        print(f"{name}: {dset[name].shape}")
+        # Parse target combination (e.g., "mye + ecs" -> ["mye", "ecs"])
+        target_keys = parse_target_combination(key_spec)
 
-        # Binarize
-        if name in requires_binarize:
-            dset[name] = (dset[name] > 0).astype('uint8')
+        # Load and combine targets
+        combined_data = None
+        combined_mask = None
 
-        # Mask
-        if zettaset_mask and (key in sample.masks):
-            vol = sample.read_mask(key)[key]
-            dset[name + "_mask"] = convert_array(vol).astype('uint8')
-        else:
-            dset[name + "_mask"] = np.ones_like(dset[name], dtype='uint8')
+        for key in target_keys:
+            # Annotation
+            vol = sample.read(key)[key]
+            data_array = convert_array(vol)
+
+            # Binarize if needed (before combining)
+            if name in requires_binarize:
+                data_array = (data_array > 0).astype('uint8')
+
+            # Combine (logical OR for binary targets)
+            if combined_data is None:
+                combined_data = data_array
+            else:
+                combined_data = np.maximum(combined_data, data_array)
+
+            # Mask
+            if zettaset_mask and (key in sample.masks):
+                vol = sample.read_mask(key)[key]
+                mask_array = convert_array(vol).astype('uint8')
+            else:
+                mask_array = np.ones_like(data_array, dtype='uint8')
+
+            # Combine masks (logical OR)
+            if combined_mask is None:
+                combined_mask = mask_array
+            else:
+                combined_mask = np.maximum(combined_mask, mask_array)
+
+        dset[name] = combined_data
+        print(f"{name}: {dset[name].shape} (combined from {target_keys})")
+
+        dset[name + "_mask"] = combined_mask
         print(f"{name + '_mask'}: {dset[name + '_mask'].shape}")
 
         # applying padding

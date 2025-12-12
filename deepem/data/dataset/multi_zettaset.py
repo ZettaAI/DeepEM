@@ -10,6 +10,26 @@ from zettasets.dataset import Dataset as Zettaset
 from zettasets.sample import Sample
 
 
+def parse_target_combination(target_spec: str) -> list[str]:
+    """
+    Parse a target specification that may contain combinations.
+
+    Examples:
+        "mye" -> ["mye"]
+        "mye + ecs" -> ["mye", "ecs"]
+        "a+b+c" -> ["a", "b", "c"]
+
+    Args:
+        target_spec: Target specification string
+
+    Returns:
+        List of individual target keys
+    """
+    # Split by '+' and strip whitespace
+    targets = [t.strip() for t in target_spec.split('+')]
+    return targets
+
+
 def is_valid_format(s: str) -> bool:
     """Check if string has format 'A:B'."""
     return bool(re.match(r'^[^:]+:[^:]+$', s))
@@ -184,28 +204,53 @@ def load_sample(
         shared_mask = convert_array(mask_vol).astype("uint8")
 
     # Process annotations
-    for name, key in zettaset_lookup.items():
+    for name, key_spec in zettaset_lookup.items():
 
-        # Annotation
-        vol = sample.read(key)[key]
-        dset[name] = convert_array(vol)
-        anno_log = f"\t{name}: {dset[name].shape}"
+        # Parse target combination (e.g., "mye + ecs" -> ["mye", "ecs"])
+        target_keys = parse_target_combination(key_spec)
 
-        # Semantic mapping or binarize
-        if name in semantic_mapping:
-            dset[name] = (dset[name] == semantic_mapping[name]).astype("uint8")
-        elif name in requires_binarize:
-            dset[name] = (dset[name] > 0).astype("uint8")
+        # Load and combine targets
+        combined_data = None
+        combined_mask = None
 
-        # Mask
+        for key in target_keys:
+            # Annotation
+            vol = sample.read(key)[key]
+            data_array = convert_array(vol)
+
+            # Semantic mapping or binarize (before combining)
+            if name in semantic_mapping:
+                data_array = (data_array == semantic_mapping[name]).astype("uint8")
+            elif name in requires_binarize:
+                data_array = (data_array > 0).astype("uint8")
+
+            # Combine (logical OR for binary targets)
+            if combined_data is None:
+                combined_data = data_array
+            else:
+                combined_data = np.maximum(combined_data, data_array)
+
+            # Mask
+            mask_key = f"{name}_mask"
+            if shared_mask is not None:
+                mask_array = shared_mask
+            elif (not no_mask) and (key in sample.masks):
+                mask_vol = sample.read_mask(key)[key]
+                mask_array = convert_array(mask_vol).astype("uint8")
+            else:
+                mask_array = np.ones_like(data_array, dtype="uint8")
+
+            # Combine masks (logical OR)
+            if combined_mask is None:
+                combined_mask = mask_array
+            else:
+                combined_mask = np.maximum(combined_mask, mask_array)
+
+        dset[name] = combined_data
+        anno_log = f"\t{name}: {dset[name].shape} (combined from {target_keys})"
+
         mask_key = f"{name}_mask"
-        if shared_mask is not None:
-            dset[mask_key] = shared_mask
-        elif (not no_mask) and (key in sample.masks):
-            mask_vol = sample.read_mask(key)[key]
-            dset[mask_key] = convert_array(mask_vol).astype("uint8")
-        else:
-            dset[mask_key] = np.ones_like(dset[name], dtype="uint8")
+        dset[mask_key] = combined_mask
         msk_log = f"\t{mask_key}: {dset[mask_key].shape}"
 
         # Padding
