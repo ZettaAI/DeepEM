@@ -232,11 +232,13 @@ def load_sample(
 
             # Mask
             mask_key = f"{name}_mask"
-            if shared_mask is not None:
-                mask_array = shared_mask
-            elif (not no_mask) and (key in sample.masks):
+            if (not no_mask) and (key in sample.masks):
+                # Always prioritize loading own mask if it exists
                 mask_vol = sample.read_mask(key)[key]
                 mask_array = convert_array(mask_vol).astype("uint8")
+            elif shared_mask is not None:
+                # Fall back to shared mask if no specific mask exists
+                mask_array = shared_mask
             else:
                 mask_array = np.ones_like(data_array, dtype="uint8")
 
