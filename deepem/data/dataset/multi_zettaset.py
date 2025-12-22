@@ -30,6 +30,26 @@ def parse_target_combination(target_spec: str) -> list[str]:
     return targets
 
 
+def parse_target_fallback(target_spec: str) -> list[str]:
+    """
+    Parse a target specification that may contain fallback options.
+
+    Examples:
+        "seg_out" -> ["seg_out"]
+        "seg_out | seg" -> ["seg_out", "seg"]
+        "a|b|c" -> ["a", "b", "c"]
+
+    Args:
+        target_spec: Target specification string with | as fallback separator
+
+    Returns:
+        List of target keys in priority order (first has highest priority)
+    """
+    # Split by '|' and strip whitespace
+    targets = [t.strip() for t in target_spec.split('|')]
+    return targets
+
+
 def is_valid_format(s: str) -> bool:
     """Check if string has format 'A:B'."""
     return bool(re.match(r'^[^:]+:[^:]+$', s))
@@ -206,8 +226,27 @@ def load_sample(
     # Process annotations
     for name, key_spec in zettaset_lookup.items():
 
+        # Parse fallback options first (e.g., "seg_out | seg" -> ["seg_out", "seg"])
+        fallback_options = parse_target_fallback(key_spec)
+
+        # Try each fallback option until one exists
+        selected_key_spec = None
+        for option in fallback_options:
+            # Parse target combination for this option (e.g., "mye + ecs" -> ["mye", "ecs"])
+            target_keys = parse_target_combination(option)
+            # Check if all targets in this combination exist
+            if all(key in sample.annotation_names for key in target_keys):
+                selected_key_spec = option
+                break
+
+        if selected_key_spec is None:
+            raise KeyError(
+                f"None of the fallback options {fallback_options} exist in sample annotations. "
+                f"Available annotations: {sample.annotation_names}"
+            )
+
         # Parse target combination (e.g., "mye + ecs" -> ["mye", "ecs"])
-        target_keys = parse_target_combination(key_spec)
+        target_keys = parse_target_combination(selected_key_spec)
 
         # Load and combine targets
         combined_data = None
