@@ -29,11 +29,12 @@ class Forward(object):
         # Test-time augmentation
         if self.test_aug:
 
-            # For variance computation
+            # For variance computation using Welford's online algorithm
+            # This reduces memory from O(n) to O(1) where n is augmentation count
             if self.variance:
                 aug_out = dict()
                 for k, v in scanner.outputs.data.items():
-                    aug_out[k] = list()
+                    aug_out[k] = {'mean': None, 'M2': None, 'count': 0}
             else:
                 aug_out = None
 
@@ -64,9 +65,9 @@ class Forward(object):
                     reverted = fwd_utils.revert_flip(output, rule=rule, dst=dst)
                     v._data += reverted
 
-                    # For variance computation
+                    # For variance computation using Welford's online algorithm
                     if self.variance:
-                        aug_out[k].append(reverted)
+                        self._update_welford(aug_out[k], reverted)
 
                 count += 1
 
@@ -78,6 +79,11 @@ class Forward(object):
                 else:
                     v._norm._data[...] = count
 
+            # Finalize variance computation
+            if self.variance:
+                for k in aug_out:
+                    aug_out[k] = self._finalize_welford(aug_out[k])
+
             return (scanner.outputs, aug_out)
 
         return (self.forward(model, scanner), None)
@@ -85,6 +91,39 @@ class Forward(object):
     ####################################################################
     ## Non-interface functions
     ####################################################################
+
+    def _update_welford(self, state, x):
+        """Update Welford's online algorithm state with new sample.
+
+        This computes running mean and sum of squared differences (M2)
+        incrementally, requiring only O(1) memory instead of O(n).
+
+        Args:
+            state: Dict with 'mean', 'M2', and 'count' keys
+            x: New sample (numpy array)
+        """
+        state['count'] += 1
+        if state['mean'] is None:
+            state['mean'] = x.copy()
+            state['M2'] = np.zeros_like(x)
+        else:
+            delta = x - state['mean']
+            state['mean'] += delta / state['count']
+            delta2 = x - state['mean']
+            state['M2'] += delta * delta2
+
+    def _finalize_welford(self, state):
+        """Finalize Welford's algorithm to compute variance.
+
+        Args:
+            state: Dict with 'mean', 'M2', and 'count' keys
+
+        Returns:
+            Variance array (population variance)
+        """
+        if state['count'] < 1:
+            return None
+        return state['M2'] / state['count']
 
     def forward(self, model, scanner):
         elapsed = list()
