@@ -114,10 +114,9 @@ def save_output(output, opt, data_name=None, aug_out=None):
                 from deepem.test import cv_utils
                 cv_utils.ingest(data, opt, tag=tag)
 
-                # Optional variance
-                if aug_out is not None:
-                    variance = np.var(np.stack(aug_out[k]), axis=0)
-                    cv_utils.ingest(variance, opt, tag=(tag + '_var'))
+                # Optional variance (pre-computed using Welford's algorithm)
+                if aug_out is not None and aug_out.get(k) is not None:
+                    cv_utils.ingest(aug_out[k], opt, tag=(tag + '_var'))
 
             except ImportError:
                 raise
