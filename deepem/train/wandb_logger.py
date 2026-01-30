@@ -110,19 +110,24 @@ class WandbLogger:
                 arr = self.to_array(vec.select(0, 0), padsz=padsz)
             else:
                 arr = self.to_array(torch.sigmoid(preds[key]), padsz=padsz)
-            logs.append(wandb.Image(arr, caption=f"{key} prediciton"))
-
+            amin, amax = arr.aminmax()
+            logs.append(
+                wandb.Image(
+                    arr,
+                    caption=f"{key} prediction (low: {amin.item():.2f}, high: {amax.item():.2f})",
+                )
+            )
             # Label
             if key in ["affinity", "long_range", "embedding", "mitochondria_embedding"]:
                 seg = sample[key][0,0,...].cpu().numpy().astype('uint32')
                 rgb = torch.from_numpy(py_utils.seg2rgb(seg))
                 arr = self.to_array(rgb, padsz=padsz)
             else:
-                arr = self.to_array(sample[key], padsz=padsz)
+                arr = self.to_array(sample[key], padsz=padsz, normalize=True)
             logs.append(wandb.Image(arr, caption=f"{key} label"))
 
             # Mask
-            arr = self.to_array(sample[f"{key}_mask"], padsz=padsz)
+            arr = self.to_array(sample[f"{key}_mask"], padsz=padsz, normalize=True)
             logs.append(wandb.Image(arr, caption=f"{key} mask"))
 
         # Log images
@@ -133,6 +138,7 @@ class WandbLogger:
         tensor: torch.Tensor,
         cropsz: tuple[int, int, int] | None = None,
         padsz: tuple[int, int, int] | None = None,
+        **grid_kwargs,
     ) -> torch.Tensor:
         """Convert a tensor to a loggable array."""
         tensor = tensor.cpu()
@@ -148,4 +154,6 @@ class WandbLogger:
         tensor = tensor[0:3, ...] if tensor.ndim > 3 else tensor
         depth = tensor.shape[-3]
         imgs = [tensor[:,z,:,:] for z in range(depth)]
-        return make_grid(imgs, nrow=depth, padding=0)
+        grid_kwargs.setdefault("nrow", depth)
+        grid_kwargs.setdefault("padding", 0)
+        return make_grid(imgs, **grid_kwargs)
