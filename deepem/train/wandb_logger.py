@@ -129,8 +129,13 @@ class WandbLogger:
                 arr = self.to_array(vec.select(0, 0), padsz=padsz)
             else:
                 arr = self.to_array(torch.sigmoid(preds[key]), padsz=padsz)
-            logs.append(wandb.Image(arr, caption=f"{key} prediciton"))
-
+            amin, amax = arr.aminmax()
+            logs.append(
+                wandb.Image(
+                    arr,
+                    caption=f"{key} prediction (low: {amin.item():.2f}, high: {amax.item():.2f})",
+                )
+            )
             # Label
             if key in ["affinity", "long_range", "embedding", "mitochondria_embedding"]:
                 seg = sample[key][0,0,...].cpu().numpy().astype('uint32')
