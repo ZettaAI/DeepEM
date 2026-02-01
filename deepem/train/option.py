@@ -183,6 +183,7 @@ class Options(object):
         self.parser.add_argument('--img', type=float, default=0)  # Image
         self.parser.add_argument('--mito_to_cell', type=float, default=0)  # Mito to cell
         self.parser.add_argument('--mito_to_cell_mode', type=str, default='random')  # Mito to cell mode
+        self.parser.add_argument('--merge_classes', type=str, default=[], nargs='+')  # for onnx export
 
         # Semantic segmentation
         self.parser.add_argument('--sem', action='store_true')
