@@ -157,6 +157,7 @@ class Options(object):
         self.parser.add_argument('--noise_per_channel', action='store_true')
         self.parser.add_argument('--section_gap', type=int, default=0)
         self.parser.add_argument('--mask_section_gap', action='store_true')
+        self.parser.add_argument('--degradation_skip', type=float, default=0.1)
 
         # Tilt-series electron tomography
         self.parser.add_argument('--tilt_series', type=int, default=0)
@@ -282,7 +283,7 @@ class Options(object):
         # Data augmentation
         aug_keys = ['recompute', 'border', 'flip','grayscale','warping','misalign',
                     'interp','missing','blur','box','mip','lost','random',
-                    'section_gap', 'mask_section_gap']
+                    'section_gap', 'mask_section_gap', 'degradation_skip']
         opt.aug_params = {k: args[k] for k in aug_keys}
 
         # Noise

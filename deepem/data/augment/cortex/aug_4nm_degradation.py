@@ -13,6 +13,7 @@ def get_augmentation(
     border=[],
     section_gap=0,
     mask_section_gap=False,
+    degradation_skip=0.1,
     **kwargs
 ):
     """Augmentation spec with harsh SNR degradation for robust training.
@@ -20,6 +21,12 @@ def get_augmentation(
     This spec adds a blended ImageDegradation (50% 2D + 50% 3D) that spans
     from mild to nightmare levels, simulating severe image quality issues
     (shot noise, readout noise, poor contrast).
+
+    Args:
+        degradation_skip: Skip probability for each degradation component
+            (Poisson, Gaussian, contrast). Default 0.1. With skip=0.1, ~73%
+            of samples get full degradation, ~27% partial, ~0.1% minimal.
+            With skip=0.2, ~51% full, ~48% partial, ~0.8% minimal.
 
     Degradation Parameters (nightmare-spanning):
         peak_electrons: (5, 200)      # Poisson noise: nightmare(5) → mild(200)
@@ -65,8 +72,9 @@ def get_augmentation(
     #   - 2D: Per-slice variability (realistic for EM section-to-section noise)
     #   - 3D: Volume-wide consistency (systematic degradation across block)
     #
-    # With skip_*=0.1, ~73% of samples get full degradation pipeline,
-    # ~24% get partial degradation, ~3% get minimal/no degradation.
+    # With default skip=0.1, ~73% of samples get full degradation pipeline,
+    # ~27% get partial degradation, ~0.1% get minimal/no degradation.
+    # With skip=0.2, ~51% full, ~48% partial, ~0.8% minimal/no degradation.
     # ==========================================================================
     if is_train:
         degradation_params = dict(
@@ -75,9 +83,9 @@ def get_augmentation(
             compression_factor=(0.1, 0.6),
             mean_shift=(-0.1, 0.1),
             use_local_mean=True,
-            skip_poisson=0.1,
-            skip_gaussian=0.1,
-            skip_contrast=0.1,
+            skip_poisson=degradation_skip,
+            skip_gaussian=degradation_skip,
+            skip_contrast=degradation_skip,
         )
         augs.append(
             Blend([
