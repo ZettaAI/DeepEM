@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 import emvision
-from emvision.models import rsunet_act, rsunet_act_gn
+from emvision.models import rsunet_act_in, rsunet_act_gn
 
 from deepem.models.layers import Conv, Crop
 
@@ -18,8 +18,8 @@ def create_model(opt):
         # Group normalization
         core = rsunet_act_gn(width=width[:depth], group=opt.group, act=opt.act)
     else:
-        # Batch normalization
-        core = rsunet_act(width=width[:depth], act=opt.act)
+        # Instance normalization
+        core = rsunet_act_in(width=width[:depth], act=opt.act)
     return Model(core, opt.in_spec, opt.out_spec, width[0], crop=opt.crop,
                  onnx=opt.onnx)
 

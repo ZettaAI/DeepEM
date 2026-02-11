@@ -65,6 +65,12 @@ class Model(nn.Module):
         state_dict = chkpt['state_dict'] if 'state_dict' in chkpt else chkpt
         if self.pretrain:
             model_dict = self.model.state_dict()
+            ignored = sorted(set(state_dict) - set(model_dict))
+            missing = sorted(set(model_dict) - set(state_dict))
+            if ignored:
+                print(f"Pretrain: ignoring {len(ignored)} checkpoint keys not in model: {ignored}")
+            if missing:
+                print(f"Pretrain: failed to find {len(missing)} model keys in checkpoint: {missing}")
             state_dict = {k:v for k, v in state_dict.items() if k in model_dict}
             model_dict.update(state_dict)
             self.model.load_state_dict(model_dict)

@@ -26,8 +26,8 @@ def create_model(opt):
             act=opt.act,
         )
     else:
-        # Batch (instance) normalization
-        core = emvision.models.rsunet_act(
+        # Instance normalization
+        core = emvision.models.rsunet_act_in(
             width=width[:depth],
             zfactor=zfactor,
             act=opt.act,
