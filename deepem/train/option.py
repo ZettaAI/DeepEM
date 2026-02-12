@@ -119,6 +119,9 @@ class Options(object):
         self.parser.add_argument('--optim', default='Adam')
         self.parser.add_argument('--lr', type=float, default=0.001)
 
+        # EMA (Exponential Moving Average)
+        self.parser.add_argument('--ema_decay', type=float, default=0.0)
+
         # Optimizer: Adam
         self.parser.add_argument('--betas', type=float, default=[0.9,0.999], nargs='+')
         self.parser.add_argument('--eps', type=float, default=1e-08)

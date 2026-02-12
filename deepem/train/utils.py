@@ -155,22 +155,28 @@ def latest_chkpt(fpath):
     return latest_regular, False
 
 
-def save_chkpt(model, fpath, chkpt_num, optimizer):
+def save_chkpt(model, fpath, chkpt_num, optimizer, ema_model=None):
     print(f"SAVE CHECKPOINT: {chkpt_num} iters.")
     fname = os.path.join(fpath, f"model{chkpt_num}.chkpt")
     state = {'iter': chkpt_num,
              'state_dict': model.state_dict(),
              'optimizer': optimizer.state_dict()}
+    if ema_model is not None:
+        state['ema_state_dict'] = ema_model.module.state_dict()
+        state['ema_n_averaged'] = ema_model.n_averaged.item()
     torch.save(state, fname)
 
 
-def save_frontier_chkpt(model, fpath, chkpt_num, optimizer):
+def save_frontier_chkpt(model, fpath, chkpt_num, optimizer, ema_model=None):
     """Save a frontier checkpoint that overwrites the previous frontier checkpoint."""
     print(f"SAVE FRONTIER CHECKPOINT: {chkpt_num} iters.")
     fname = os.path.join(fpath, "model_frontier.chkpt")
     state = {'iter': chkpt_num,
              'state_dict': model.state_dict(),
              'optimizer': optimizer.state_dict()}
+    if ema_model is not None:
+        state['ema_state_dict'] = ema_model.module.state_dict()
+        state['ema_n_averaged'] = ema_model.n_averaged.item()
     torch.save(state, fname)
 
 
@@ -207,6 +213,29 @@ def load_optimizer_state(optimizer, fpath, chkpt_num, is_frontier=False):
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
                     state[k] = v.cuda()
+
+
+def load_ema_state(ema_model, opt):
+    """Load EMA state from checkpoint if available."""
+    is_frontier = getattr(opt, 'loaded_from_frontier', False)
+    if is_frontier:
+        fname = os.path.join(opt.model_dir, "model_frontier.chkpt")
+    else:
+        fname = os.path.join(opt.model_dir,
+                             f"model{opt.chkpt_num}.chkpt")
+    if not os.path.exists(fname):
+        return
+
+    chkpt = torch.load(fname)
+    if 'ema_state_dict' in chkpt:
+        print(f"LOAD EMA STATE: {opt.chkpt_num} iters.")
+        ema_model.module.model.load_state_dict(
+            chkpt['ema_state_dict'])
+        if 'ema_n_averaged' in chkpt:
+            ema_model.n_averaged.fill_(
+                chkpt['ema_n_averaged'])
+    else:
+        print("No EMA state in checkpoint, starting fresh.")
 
 
 def load_data(opt, local_rank):

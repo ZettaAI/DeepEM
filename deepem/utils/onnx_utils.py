@@ -78,7 +78,6 @@ def export_onnx(
     onnx_model = load_model(onnx_opt)
     onnx_model, count = batchnorm3d_to_instancenorm3d(onnx_model)
     print(f"Replaced {count} BatchNorm3d layer to InstanceNorm3d layer.")
-    fname = os.path.join(onnx_opt.model_dir, f"model{chkpt_num}.onnx")
 
     args = dummy_input(onnx_opt.in_spec, device=onnx_opt.device)
 
@@ -88,6 +87,8 @@ def export_onnx(
     # Generate input names based on spec keys
     input_names = sorted(onnx_opt.in_spec.keys())
 
+    # Export regular model
+    fname = os.path.join(onnx_opt.model_dir, f"model{chkpt_num}.onnx")
     torch.onnx.export(
         onnx_model,
         export_args,
@@ -96,7 +97,29 @@ def export_onnx(
         verbose=False,
         export_params=True,
         opset_version=onnx_opt.opset_version,
-        input_names=input_names,  # dynamic input names based on spec
+        input_names=input_names,
         output_names=["output"]
     )
     print(f"Relative ONNX filepath: {fname}")
+
+    # Export EMA model if available
+    if getattr(opt, 'ema_decay', 0) > 0:
+        chkpt_fname = os.path.join(
+            onnx_opt.model_dir, f"model{chkpt_num}.chkpt")
+        chkpt = torch.load(chkpt_fname)
+        if 'ema_state_dict' in chkpt:
+            onnx_model.model.load_state_dict(chkpt['ema_state_dict'])
+            fname_ema = os.path.join(
+                onnx_opt.model_dir, f"model{chkpt_num}_ema.onnx")
+            torch.onnx.export(
+                onnx_model,
+                export_args,
+                fname_ema,
+                dynamo=False,
+                verbose=False,
+                export_params=True,
+                opset_version=onnx_opt.opset_version,
+                input_names=input_names,
+                output_names=["output"]
+            )
+            print(f"Relative EMA ONNX filepath: {fname_ema}")
