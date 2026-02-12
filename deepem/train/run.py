@@ -4,6 +4,7 @@ import time
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.optim.swa_utils import AveragedModel, get_ema_multi_avg_fn
 
 import samwise
 
@@ -68,6 +69,18 @@ def train(opt):
     trainable = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = load_optimizer(opt, trainable)
 
+    # EMA model
+    ema_model = None
+    if opt.ema_decay > 0:
+        base = model.module if opt.parallel == "DDP" else model
+        ema_model = AveragedModel(
+            base,
+            multi_avg_fn=get_ema_multi_avg_fn(opt.ema_decay),
+            use_buffers=True,
+        )
+        if opt.chkpt_num != 0:
+            load_ema_state(ema_model, opt)
+
     # Data loaders
     train_loader, val_loader = load_data(opt, local_rank)
 
@@ -75,10 +88,12 @@ def train(opt):
     if opt.parallel == "DDP":
         if dist.get_rank() == 0:
             model = revert_sync_batchnorm(model)
-            save_chkpt(model.module, opt.model_dir, opt.chkpt_num, optimizer)
+            save_chkpt(model.module, opt.model_dir, opt.chkpt_num,
+                       optimizer, ema_model=ema_model)
             model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     else:
-        save_chkpt(model, opt.model_dir, opt.chkpt_num, optimizer)
+        save_chkpt(model, opt.model_dir, opt.chkpt_num,
+                   optimizer, ema_model=ema_model)
 
     # Mixed-precision training
     scaler = None
@@ -135,6 +150,11 @@ def train(opt):
                 total_loss.backward()
                 optimizer.step()
 
+            # Update EMA
+            if ema_model is not None:
+                ema_base = model.module if opt.parallel == "DDP" else model
+                ema_model.update_parameters(ema_base)
+
             # Elapsed time
             end.record()
             end.synchronize()  # waits only for work up to `end` on this stream
@@ -163,33 +183,49 @@ def train(opt):
             if (i+1) % opt.eval_intv == 0:
                 if opt.parallel == "DDP":
                     if dist.get_rank() == 0:
-                        model = revert_sync_batchnorm(model)
-                        eval_loop(i+1, model, val_loader, opt, logger, wandb_logger)
-                        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+                        if ema_model is not None:
+                            eval_loop(i+1, ema_model.module,
+                                      val_loader, opt, logger,
+                                      wandb_logger)
+                        else:
+                            model = revert_sync_batchnorm(model)
+                            eval_loop(i+1, model, val_loader,
+                                      opt, logger, wandb_logger)
+                            model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
                 else:
-                    eval_loop(i+1, model, val_loader, opt, logger, wandb_logger)
+                    eval_model = (ema_model.module
+                                  if ema_model is not None
+                                  else model)
+                    eval_loop(i+1, eval_model, val_loader,
+                              opt, logger, wandb_logger)
 
             # Frontier checkpoint (overwrites previous frontier)
             if opt.chkpt_sync_intv is not None and (i+1) % opt.chkpt_sync_intv == 0:
                 if opt.parallel == "DDP":
                     if dist.get_rank() == 0:
                         model = revert_sync_batchnorm(model)
-                        save_frontier_chkpt(model.module, opt.model_dir, i+1, optimizer)
+                        save_frontier_chkpt(model.module, opt.model_dir,
+                                            i+1, optimizer,
+                                            ema_model=ema_model)
                         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
                 else:
-                    save_frontier_chkpt(model, opt.model_dir, i+1, optimizer)
+                    save_frontier_chkpt(model, opt.model_dir, i+1,
+                                        optimizer,
+                                        ema_model=ema_model)
 
             # Model checkpoint
             if (i+1) % opt.chkpt_intv == 0:
                 if opt.parallel == "DDP":
                     if dist.get_rank() == 0:
                         model = revert_sync_batchnorm(model)
-                        save_chkpt(model.module, opt.model_dir, i+1, optimizer)
+                        save_chkpt(model.module, opt.model_dir, i+1,
+                                   optimizer, ema_model=ema_model)
                         if opt.export_onnx:
                             export_onnx(opt, i+1)
                         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
                 else:
-                    save_chkpt(model, opt.model_dir, i+1, optimizer)
+                    save_chkpt(model, opt.model_dir, i+1,
+                               optimizer, ema_model=ema_model)
                     if opt.export_onnx:
                         export_onnx(opt, i+1)
 
