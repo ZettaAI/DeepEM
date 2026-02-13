@@ -29,14 +29,34 @@ def get_criteria(opt):
             assert len(edges) > 0
             params = dict(opt.loss_params)
             params['size_average'] = False
-            criteria[k] = loss.AffinityLoss(edges,
+            base_criterion = loss.AffinityLoss(edges,
                 criterion=getattr(loss, opt.loss)(**params),
                 split_boundary=not opt.no_split_boundary,
                 size_average=opt.size_average,
                 class_balancer=balancer,
             )
+            # Wrap with SuperResolutionAffinityLoss in SR mode
+            if opt.sr_mode:
+                criteria[k] = loss.SuperResolutionAffinityLoss(
+                    base_criterion,
+                    scale_z=opt.sr_scale_z,
+                    iso_weight=opt.sr_iso_weight,
+                    aniso_weight=opt.sr_aniso_weight,
+                )
+            else:
+                criteria[k] = base_criterion
         elif k == 'embedding':
-            criteria[k] = getattr(loss, opt.metric_loss)(**opt.metric_params)
+            base_criterion = getattr(loss, opt.metric_loss)(**opt.metric_params)
+            # Wrap with SuperResolutionMeanLoss in SR mode
+            if opt.sr_mode:
+                criteria[k] = loss.SuperResolutionMeanLoss(
+                    base_criterion,
+                    scale_z=opt.sr_scale_z,
+                    iso_weight=opt.sr_iso_weight,
+                    aniso_weight=opt.sr_aniso_weight,
+                )
+            else:
+                criteria[k] = base_criterion
         elif k == 'mitochondria_embedding':
             params = dict(opt.metric_params)
             params['mask_background'] = False
@@ -62,7 +82,17 @@ def get_criteria(opt):
                 params['inverse'] = False
                 params['class_balancer'] = None
 
-            criteria[k] = getattr(loss, 'BCELoss')(**params)
+            base_criterion = getattr(loss, 'BCELoss')(**params)
+            # Wrap with SuperResolutionLoss in SR mode
+            if opt.sr_mode:
+                criteria[k] = loss.SuperResolutionLoss(
+                    base_criterion,
+                    scale_z=opt.sr_scale_z,
+                    iso_weight=opt.sr_iso_weight,
+                    aniso_weight=opt.sr_aniso_weight,
+                )
+            else:
+                criteria[k] = base_criterion
     return criteria
 
 

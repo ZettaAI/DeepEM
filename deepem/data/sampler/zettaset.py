@@ -9,7 +9,21 @@ from dataprovider3 import DataProvider, Dataset, DataSuperset
 def get_spec(
     in_spec: dict[str, tuple[int, ...]],
     out_spec: dict[str, tuple[int, ...]],
+    sr_mode: bool = False,
+    sr_scale_z: int = 5,
 ) -> dict[str, tuple[int, int, int]]:
+    """
+    Build data specification from input/output specs.
+
+    Args:
+        in_spec: Input specification {key: (C, Z, Y, X)}
+        out_spec: Output specification {key: (C, Z, Y, X)}
+        sr_mode: If True, configure for super-resolution training
+        sr_scale_z: Z downsampling factor for SR mode
+
+    Returns:
+        Specification dict for dataprovider
+    """
     spec = {}
 
     for key, dims in {**in_spec, **out_spec}.items():

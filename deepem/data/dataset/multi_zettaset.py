@@ -66,7 +66,14 @@ def load_data(
     Parameters:
     - zettaset_specs (dict[str, dict]): Specifications for the zettasets to load.
         Each key is the name of the zettaset, and the value is a dictionary of
-        its specifications.
+        its specifications. Supported keys per zettaset:
+            - path (str): GCS path to the zettaset (required)
+            - resolution (tuple): Resolution in (z, y, x) nm
+            - padding (tuple): Padding in (z, y, x) voxels
+            - no_mask (bool): If True, don't load masks
+            - isotropic (bool): If True, marks dataset as isotropic for SR training.
+                                Used by super_resolution sampler to apply appropriate
+                                augmentation (full 3D vs XY-only).
     - data_ids (list[str], optional): Specific data identifiers to load. Defaults to None.
 
     Returns:

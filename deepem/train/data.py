@@ -35,6 +35,9 @@ class Data(object):
         sample = next(self.dataiter)
         sample = self.modifier(sample, is_train=self.is_train)
         for k in sample:
+            if sample[k] is None:
+                # Skip None values (e.g., iso targets for aniso samples in SR mode)
+                continue
             is_input = k in self.inputs
             sample[k].requires_grad_(is_input)
             sample[k] = sample[k].cuda(device=self.local_rank, non_blocking=(not is_input))
@@ -48,14 +51,32 @@ class Data(object):
         if opt.augment:
             mod = load_module('augment', opt.augment)
             aug = mod.get_augmentation(is_train, **opt.aug_params)
+            # For SR mode, also get aniso augmentation if available
+            aug_aniso = None
+            if getattr(opt, 'sr_mode', False) and hasattr(mod, 'get_augmentation_aniso'):
+                aug_aniso = mod.get_augmentation_aniso(is_train, **opt.aug_params)
         else:
             aug = None
+            aug_aniso = None
 
         # Data sampler
         mod = load_module('sampler', opt.sampler)
-        spec = mod.get_spec(opt.in_spec, opt.out_spec)
+        # Build sampler kwargs
+        sampler_kwargs = dict(opt.sampler_params)
+        if getattr(opt, 'sr_mode', False):
+            sampler_kwargs['sr_mode'] = opt.sr_mode
+            sampler_kwargs['sr_scale_z'] = opt.sr_scale_z
+            sampler_kwargs['out_spec'] = opt.out_spec
+            sampler_kwargs['aug_aniso'] = aug_aniso
+            spec = mod.get_spec(
+                opt.in_spec, opt.out_spec,
+                sr_mode=opt.sr_mode,
+                sr_scale_z=opt.sr_scale_z,
+            )
+        else:
+            spec = mod.get_spec(opt.in_spec, opt.out_spec)
         zspecs = opt.zettaset_specs
-        sampler = mod.Sampler(data, spec, is_train, aug, prob, zspecs, **opt.sampler_params)
+        sampler = mod.Sampler(data, spec, is_train, aug, prob, zspecs, **sampler_kwargs)
 
         # Sample modifier
         if opt.modifier:
