@@ -100,6 +100,7 @@ class Options(object):
         self.parser.add_argument('--class_balancing', action='store_true')
         self.parser.add_argument('--class_weight0', type=parse_class_weight, default=None)
         self.parser.add_argument('--class_weight1', type=parse_class_weight, default=None)
+        self.parser.add_argument('--focal_gamma', type=float, default=None)
         self.parser.add_argument('--default_aux', action='store_true')
 
         # Mean-based loss
@@ -256,7 +257,7 @@ class Options(object):
         args = vars(opt)
 
         # Loss
-        loss_keys = ['size_average','margin0','margin1','inverse']
+        loss_keys = ['size_average','margin0','margin1','inverse','focal_gamma']
         opt.loss_params = {k: args[k] for k in loss_keys}
 
         # Metirc learning
