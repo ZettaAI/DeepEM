@@ -8,9 +8,10 @@ from torch.nn import functional as F
 class BCELoss(nn.Module):
     """
     Binary cross entropy loss with logits.
+    With focal_gamma set, model will downweight well-classified examples.
     """
     def __init__(self, size_average=True, margin0=0, margin1=0, inverse=True,
-                       class_balancer=None, **kwargs):
+                       class_balancer=None, focal_gamma=None, **kwargs):
         super().__init__()
         self.bce = F.binary_cross_entropy_with_logits
         self.size_average = size_average
@@ -18,6 +19,7 @@ class BCELoss(nn.Module):
         self.margin1 = float(np.clip(margin1, 0, 1))
         self.inverse = inverse
         self.balancer = class_balancer
+        self.focal_gamma = focal_gamma
 
     def forward(self, input, target, mask):
         # Number of valid voxels
@@ -46,7 +48,15 @@ class BCELoss(nn.Module):
                 m_ext = torch.le(activ, m0) * torch.eq(target, 0)
                 mask *= 1 - (m_int + m_ext).type(mask.dtype)
 
-        loss = self.bce(input, tgt, weight=mask, reduction='sum')
+        if self.focal_gamma is not None:
+            # Focal loss
+            p = torch.sigmoid(input)
+            pt = p * tgt + (1.0 - p) * (1.0 - tgt)
+            focal_weight = (1.0 - pt) ** self.focal_gamma
+            bce = self.bce(input, tgt, reduction='none')
+            loss = (focal_weight * bce * mask).sum()
+        else:
+            loss = self.bce(input, tgt, weight=mask, reduction='sum')
 
         if self.size_average:
             loss = loss / nmsk.item()
