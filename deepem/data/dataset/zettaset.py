@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from cloudvolume import CloudVolume, Bbox
+from cloudvolume.exceptions import InfoUnavailableError
 import numpy as np
 from numpy.typing import ArrayLike
 import re
@@ -90,13 +91,25 @@ def load_sample(
     )
     image_bbox = Bbox(bbox.minpt - xyz_padding, bbox.maxpt + xyz_padding)
 
-    # Image
-    vol = CloudVolume(  # pylint: disable=unsubscriptable-object
-        sample.src_image_path,
-        mip=resolution,
-        fill_missing=True,
-        bounded=False,
-    )[image_bbox.to_slices()]
+    # Image: try src_image_path first for backward compatibility,
+    #        fall back to sample's own image volume
+    try:
+        if sample.src_image_path is None:
+            raise ValueError("No src_image_path available")
+        vol = CloudVolume(  # pylint: disable=unsubscriptable-object
+            sample.src_image_path,
+            mip=resolution,
+            fill_missing=True,
+            bounded=False,
+        )[image_bbox.to_slices()]
+    except (InfoUnavailableError, ValueError) as e:
+        print(f"\tWarning: src_image_path failed ({e}), falling back to sample image volume")
+        vol = CloudVolume(  # pylint: disable=unsubscriptable-object
+            sample.volumes["image"].cloudpath,
+            mip=resolution,
+            fill_missing=True,
+            bounded=False,
+        )[image_bbox.to_slices()]
     dset["input"] = convert_array(vol)
     dset["input"] = (dset["input"] / 255.).astype('float32')
     print(f"input: {dset['input'].shape}")
