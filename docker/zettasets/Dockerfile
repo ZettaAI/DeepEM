@@ -43,7 +43,7 @@ RUN pip install --no-cache-dir \
     pip install --no-cache-dir \
         git+https://github.com/ZettaAI/DataProvider3 && \
     pip install --no-cache-dir \
-        git+https://github.com/ZettaAI/Augmentor && \
+        git+https://github.com/ZettaAI/Augmentor@nkem/simplex-noise-warp && \
     pip install --no-cache-dir \
         git+https://github.com/seung-lab/pytorch-emvision && \
     pip install --no-cache-dir \
