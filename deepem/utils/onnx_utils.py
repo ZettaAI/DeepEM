@@ -92,6 +92,7 @@ def export_onnx(
         onnx_model,
         export_args,
         fname,
+        dynamo=False,
         verbose=False,
         export_params=True,
         opset_version=onnx_opt.opset_version,
