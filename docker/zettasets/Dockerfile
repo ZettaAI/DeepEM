@@ -2,12 +2,13 @@ FROM mambaorg/micromamba AS intermediate
 # Multi-stage build to pull in zettasets (private repo)
 
 USER root
-ARG GIT_ACCESS_TOKEN
 
 RUN apt-get update --allow-releaseinfo-change && \
-    apt-get install -y --no-install-recommends build-essential git && \
-    git clone https://${GIT_ACCESS_TOKEN}@github.com/ZettaAI/zettasets.git /tmp/zettasets && \
+    apt-get install -y --no-install-recommends build-essential git openssh-client && \
     rm -rf /var/lib/apt/lists/*
+RUN mkdir -p -m 0600 ~/.ssh && \
+    ssh-keyscan github.com >> ~/.ssh/known_hosts
+RUN --mount=type=ssh git clone git@github.com:ZettaAI/zettasets.git /tmp/zettasets
 
 # Use an optimized PyTorch base image
 # FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-runtime
@@ -55,7 +56,7 @@ RUN pip install --no-cache-dir -e .
 
 # Set up working directory and environment
 RUN mkdir -p /workspace
-ENV PYTHONPATH=/DeepEM:${PYTHONPATH}
+ENV PYTHONPATH=/DeepEM
 
 COPY . /DeepEM/
 WORKDIR /workspace
