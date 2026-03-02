@@ -135,11 +135,6 @@ class SuperResolutionMeanLoss(nn.Module):
         scale = (1.0 / self.scale_z, 1.0, 1.0)
         return F.interpolate(embd, scale_factor=scale, mode='trilinear', align_corners=False)
 
-    def _downsample_labels(self, labels):
-        """Downsample segmentation labels using nearest neighbor."""
-        scale = (1.0 / self.scale_z, 1.0, 1.0)
-        return F.interpolate(labels.float(), scale_factor=scale, mode='nearest').to(labels.dtype)
-
     def forward(self, pred, target_iso, target_aniso, mask_iso, mask_aniso, is_isotropic,
                 splt_iso=None, splt_aniso=None):
         """

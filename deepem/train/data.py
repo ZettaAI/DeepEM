@@ -87,6 +87,13 @@ class Data(object):
                 return x
             self.modifier = default_modifier
 
+        # SR mode requires batch_size=1 (iso and aniso samples have different
+        # None/tensor patterns that can't be collated)
+        if getattr(opt, 'sr_mode', False):
+            assert opt.batch_size == 1, (
+                f"SR mode requires batch_size=1, got {opt.batch_size}"
+            )
+
         # Data loader
         size = (opt.max_iter - opt.chkpt_num) * opt.batch_size
         dataset = Dataset(sampler, size)

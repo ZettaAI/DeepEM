@@ -30,11 +30,7 @@ class Model(nn.Module):
             preds = self.model(input_dict)
 
         # Loss evaluation
-        try:
-            losses, nmasks = self.eval_loss(preds, sample)
-        except:
-            import pdb; pdb.set_trace()
-            raise
+        losses, nmasks = self.eval_loss(preds, sample)
         return losses, nmasks, preds
 
     def eval_loss(self, preds, sample):
