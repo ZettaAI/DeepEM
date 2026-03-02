@@ -240,17 +240,24 @@ def load_sample(
                 break
 
         if selected_key_spec is None:
-            raise KeyError(
-                f"None of the fallback options {fallback_options} exist in sample annotations. "
-                f"Available annotations: {sample.annotation_names}"
+            # Zero-fill with all-zero mask (no loss contribution).
+            # Shape derived from bbox (ZYX order, matching convert_array output).
+            bbox_size = bbox.maxpt - bbox.minpt
+            shape = tuple(int(s) for s in reversed(bbox_size))
+            combined_data = np.zeros(shape, dtype="float32")
+            combined_mask = np.zeros(shape, dtype="uint8")
+            target_keys = []
+            print(
+                f"\tWARNING: '{name}' - none of the fallback options "
+                f"{fallback_options} found in annotations "
+                f"{sample.annotation_names}. "
+                f"Zero-filling with all-zero mask (no loss contribution)."
             )
-
-        # Parse target combination (e.g., "mye + ecs" -> ["mye", "ecs"])
-        target_keys = parse_target_combination(selected_key_spec)
-
-        # Load and combine targets
-        combined_data = None
-        combined_mask = None
+        else:
+            # Parse target combination (e.g., "mye + ecs" -> ["mye", "ecs"])
+            target_keys = parse_target_combination(selected_key_spec)
+            combined_data = None
+            combined_mask = None
 
         for key in target_keys:
             # Annotation
