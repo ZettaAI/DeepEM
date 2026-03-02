@@ -79,7 +79,10 @@ class Logger(object):
         def flush(self):
             ret = OrderedDict()
             for k in self.vals:
-                ret[k] = self.vals[k]/self.norm[k]
+                if self.norm[k] == 0:
+                    ret[k] = 0
+                else:
+                    ret[k] = self.vals[k]/self.norm[k]
             self.vals = OrderedDict()
             self.norm = OrderedDict()
             return ret
