@@ -34,10 +34,14 @@ def parse_target_fallback(target_spec: str) -> list[str]:
     """
     Parse a target specification that may contain fallback options.
 
+    Use "?" as the last fallback to allow zero-filling when no options match
+    (instead of raising a KeyError).
+
     Examples:
         "seg_out" -> ["seg_out"]
         "seg_out | seg" -> ["seg_out", "seg"]
         "a|b|c" -> ["a", "b", "c"]
+        "out | mye | ?" -> ["out", "mye", "?"]
 
     Args:
         target_spec: Target specification string with | as fallback separator
@@ -229,6 +233,11 @@ def load_sample(
         # Parse fallback options first (e.g., "seg_out | seg" -> ["seg_out", "seg"])
         fallback_options = parse_target_fallback(key_spec)
 
+        # Check if zero-fill is allowed (trailing "?" in fallback options)
+        allow_zero_fill = fallback_options[-1] == "?"
+        if allow_zero_fill:
+            fallback_options = fallback_options[:-1]
+
         # Try each fallback option until one exists
         selected_key_spec = None
         for option in fallback_options:
@@ -239,7 +248,7 @@ def load_sample(
                 selected_key_spec = option
                 break
 
-        if selected_key_spec is None:
+        if selected_key_spec is None and allow_zero_fill:
             # Zero-fill with all-zero mask (no loss contribution).
             # Shape derived from bbox (ZYX order, matching convert_array output).
             bbox_size = bbox.maxpt - bbox.minpt
@@ -252,6 +261,14 @@ def load_sample(
                 f"{fallback_options} found in annotations "
                 f"{sample.annotation_names}. "
                 f"Zero-filling with all-zero mask (no loss contribution)."
+            )
+        elif selected_key_spec is None:
+            raise KeyError(
+                f"None of the fallback options {fallback_options} exist in "
+                f"sample annotations. "
+                f"Available annotations: {sample.annotation_names}. "
+                f"Use '?' as trailing fallback to allow zero-filling "
+                f"(e.g., \"{key_spec} | ?\")."
             )
         else:
             # Parse target combination (e.g., "mye + ecs" -> ["mye", "ecs"])
