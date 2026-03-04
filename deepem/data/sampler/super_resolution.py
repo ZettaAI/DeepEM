@@ -97,7 +97,7 @@ class Sampler(BaseSampler):
             )
 
         # Compute sampling weights between iso and aniso
-        self.iso_prob = self._compute_iso_prob(iso_data, aniso_data, prob)
+        self.iso_prob = self._compute_iso_prob(prob)
 
     def _make_aniso_spec(
         self, spec: dict[str, tuple[int, int, int]]
@@ -129,25 +129,43 @@ class Sampler(BaseSampler):
 
     def _compute_iso_prob(
         self,
-        iso_data: dict,
-        aniso_data: dict,
         prob: dict[str, float] | None,
     ) -> float:
-        """Compute probability of sampling isotropic data."""
+        """Compute probability of sampling isotropic data.
+
+        Uses valid voxel counts from each dataprovider. Aniso voxel count
+        is scaled by sr_scale_z to compensate for the smaller Z spec.
+        User-provided prob weights override voxel-count-based weighting.
+        """
         if not self.has_iso:
             return 0.0
         if not self.has_aniso:
             return 1.0
 
         if prob:
-            iso_total = sum(prob.get(k, 1.0) for k in iso_data)
-            aniso_total = sum(prob.get(k, 1.0) for k in aniso_data)
-            total = iso_total + aniso_total
-            return iso_total / total if total > 0 else 0.5
+            # Use user-provided weights (already set on each dataprovider)
+            iso_total = sum(
+                prob.get(k, 1.0)
+                for dp in [self.dataprovider_iso]
+                for k in [d.tag for d in dp.datasets]
+            )
+            aniso_total = sum(
+                prob.get(k, 1.0)
+                for dp in [self.dataprovider_aniso]
+                for k in [d.tag for d in dp.datasets]
+            )
+        else:
+            # Weight by valid voxel count
+            iso_total = sum(
+                d.num_samples() for d in self.dataprovider_iso.datasets
+            )
+            # Aniso spec has Z/sr_scale_z, so scale up to match iso
+            aniso_total = sum(
+                d.num_samples() for d in self.dataprovider_aniso.datasets
+            ) * self.sr_scale_z
 
-        n_iso = len(iso_data)
-        n_aniso = len(aniso_data)
-        return n_iso / (n_iso + n_aniso)
+        total = iso_total + aniso_total
+        return iso_total / total if total > 0 else 0.5
 
     def __call__(self) -> dict[str, np.ndarray]:
         """Sample from either isotropic or anisotropic data."""
