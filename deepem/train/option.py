@@ -164,7 +164,13 @@ class Options(object):
         self.parser.add_argument('--tilt_series_in', type=int, default=12)
         self.parser.add_argument('--tilt_series_out', type=int, default=4)
         self.parser.add_argument('--tilt_series_crop', type=vec3, default=None)
-        
+
+        # Super-resolution mode
+        self.parser.add_argument('--sr_mode', action='store_true',
+                                 help='Enable super-resolution mode for mixed iso/aniso training')
+        self.parser.add_argument('--sr_scale_z', type=int, default=5,
+                                 help='Z upsampling factor (default: 5 for 40nm:8nm ratio)')
+
         # Long-range affinity
         self.parser.add_argument('--long', type=float, default=0)
         self.parser.add_argument('--edges', type=vec3, default=[], nargs='+')
@@ -324,6 +330,10 @@ class Options(object):
                                          opt.tilt_series_in,
                                          opt.tilt_series_out)
         opt.aug_params['tilt_series_crop'] = opt.crop
+
+        # Super-resolution augmentation params
+        opt.aug_params['sr_mode'] = opt.sr_mode
+        opt.aug_params['sr_scale_z'] = opt.sr_scale_z
 
         # Multiclass detection
         class_keys = list()
