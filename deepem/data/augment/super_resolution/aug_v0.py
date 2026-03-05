@@ -136,6 +136,11 @@ def get_augmentation_aniso(
         noise: Additive Gaussian noise params (sigma_min, sigma_max, per_channel)
         recompute: Targets for connected component recomputation
     """
+    # Scale down section-based params for the smaller aniso Z dimension.
+    # The aniso spec Z = iso_Z / sr_scale_z, so these values must fit.
+    missing = missing // sr_scale_z
+    blur = blur // sr_scale_z
+
     augs = []
 
     # Box occlusion (anisotropic: aniso=sr_scale_z for flat boxes)
