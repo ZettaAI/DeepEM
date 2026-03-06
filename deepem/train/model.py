@@ -38,6 +38,7 @@ class Model(nn.Module):
 
     def eval_loss(self, preds, sample):
         losses, nmasks = dict(), dict()
+        sr_scale_z = sample.get('_sr_scale_z', None)
         for k in self.out_spec:
             target = sample[k]
             mask = sample[k + '_mask']
@@ -45,7 +46,8 @@ class Model(nn.Module):
             if k == 'embedding':
                 splt_key = k + '_split'
                 splt = sample[splt_key] if splt_key in sample else None
-                loss, nmsk = criterion(preds[k], target, mask, splt=splt)
+                loss, nmsk = criterion(preds[k], target, mask, splt=splt,
+                                       sr_scale_z=sr_scale_z)
             else:
                 loss, nmsk = criterion(preds[k], target, mask)
             # PyTorch 0.4.0-specific workaround

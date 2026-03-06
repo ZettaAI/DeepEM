@@ -174,14 +174,21 @@ class Sampler(BaseSampler):
         if sample_iso and self.has_iso:
             sample = self.dataprovider_iso()
             sample = self._process_iso_sample(sample)
+            is_aniso = False
         elif self.has_aniso:
             sample = self.dataprovider_aniso()
             sample = self._process_aniso_sample(sample)
+            is_aniso = True
         else:
             sample = self.dataprovider_iso()
             sample = self._process_iso_sample(sample)
+            is_aniso = False
 
-        return self.postprocess(sample)
+        sample = self.postprocess(sample)
+        # Add metadata after postprocess (to_tensor expects 2D-4D arrays)
+        sr_scale_z = self.sr_scale_z if is_aniso else 0
+        sample['_sr_scale_z'] = np.array(sr_scale_z, dtype=np.float32)
+        return sample
 
     def _process_iso_sample(
         self, sample: dict[str, np.ndarray]

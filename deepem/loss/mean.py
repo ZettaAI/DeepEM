@@ -65,6 +65,36 @@ def vec2aff(
     return torch.cat(affs, dim=-4)
 
 
+def _downsample_zero_padded(
+    embd: torch.Tensor,
+    trgt: torch.Tensor,
+    mask: torch.Tensor,
+    splt: torch.Tensor | None,
+    scale_factor: tuple[float, float, float],
+    sr_scale_z: int,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor | None]:
+    """Downsample zero-padded aniso tensors without mixing real and padded values.
+
+    Extracts real sections (at offset::sr_scale_z), then downsamples XY only.
+    No re-padding: zero-padded positions have zero masks and don't contribute
+    to the loss, so we just discard them.
+    """
+    offset = sr_scale_z // 2
+    xy_scale = (1.0, scale_factor[1], scale_factor[2])
+
+    def process(t: torch.Tensor, mode: str, **kwargs) -> torch.Tensor:
+        t = t[:, :, offset::sr_scale_z, :, :]  # extract real sections
+        return F.interpolate(t, scale_factor=xy_scale, mode=mode, **kwargs)
+
+    embd = process(embd, mode='trilinear', align_corners=False)
+    trgt = process(trgt, mode='nearest')
+    mask = process(mask, mode='nearest')
+    if splt is not None:
+        splt = process(splt, mode='nearest')
+
+    return embd, trgt, mask, splt
+
+
 class MeanLoss(nn.Module):
     """
     Means-based loss for metric embeddings.
@@ -97,22 +127,30 @@ class MeanLoss(nn.Module):
         trgt: torch.Tensor,
         mask: torch.Tensor,
         splt: torch.Tensor | None = None,
+        sr_scale_z: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """
         :param embd: Embeddings
         :param trgt: Target segmentation
         :param mask: Segmentation mask
         :param splt: Connected components of the target segmentation
+        :param sr_scale_z: SR scale factor in Z (>0 for zero-padded aniso samples)
         """
         device = embd.device
 
         # Downsample if enabled
         if self.loss_scale_factor is not None:
-            embd = F.interpolate(embd, scale_factor=self.loss_scale_factor, mode='trilinear', align_corners=False)
-            trgt = F.interpolate(trgt, scale_factor=self.loss_scale_factor, mode='nearest')
-            mask = F.interpolate(mask, scale_factor=self.loss_scale_factor, mode='nearest')
-            if splt is not None:
-                splt = F.interpolate(splt, scale_factor=self.loss_scale_factor, mode='nearest')
+            sz = int(sr_scale_z.item()) if sr_scale_z is not None else 0
+            if sz > 0:
+                embd, trgt, mask, splt = _downsample_zero_padded(
+                    embd, trgt, mask, splt, self.loss_scale_factor, sz
+                )
+            else:
+                embd = F.interpolate(embd, scale_factor=self.loss_scale_factor, mode='trilinear', align_corners=False)
+                trgt = F.interpolate(trgt, scale_factor=self.loss_scale_factor, mode='nearest')
+                mask = F.interpolate(mask, scale_factor=self.loss_scale_factor, mode='nearest')
+                if splt is not None:
+                    splt = F.interpolate(splt, scale_factor=self.loss_scale_factor, mode='nearest')
 
         groups = None
         if self.recompute_ext:
