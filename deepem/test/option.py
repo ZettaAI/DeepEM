@@ -145,11 +145,16 @@ class Options(object):
         # Mixed-precision inference
         self.parser.add_argument('--mixed_precision', type=str, default=None, choices=['fp16', 'bf16'])
 
+        # Super-resolution
+        self.parser.add_argument('--sr_mode', action='store_true')
+        self.parser.add_argument('--sr_scale_z', type=int, default=5)
+        self.parser.add_argument('--sr_input_iso', action='store_true')
+
         # Export to ONNX
         self.parser.add_argument('--onnx', action='store_true')
         self.parser.add_argument('--opset_version', type=int, default=10)
 
-        self.initialized = True        
+        self.initialized = True
 
     def parse(self):
         if not self.initialized:
@@ -192,6 +197,26 @@ class Options(object):
             assert all(diff >= 0)
             if any(diff > 0):
                 opt.crop = [o/float(f) for f,o in zip(opt.fov, opt.outputsz)]
+
+        # Super-resolution inference
+        if opt.sr_mode:
+            assert opt.tilt_series == 0, "sr_mode and tilt_series are mutually exclusive"
+            assert opt.sr_scale_z > 1
+            assert opt.inputsz[0] % opt.sr_scale_z == 0, \
+                f"Input Z ({opt.inputsz[0]}) must be divisible by sr_scale_z ({opt.sr_scale_z})"
+            if opt.sr_input_iso:
+                # Iso input: scanner reads full iso patches, avg-downsample
+                # + zero-pad happens per-patch in forward pass. No scale needed
+                # (output is same resolution as input).
+                pass
+            else:
+                # Aniso input: scanner reads Z/sr_scale_z patches, zero-pad
+                # in forward pass. Scale maps output to iso coordinates.
+                opt.scale = (opt.sr_scale_z, 1, 1)
+                opt.sr_iso_inputsz = opt.inputsz
+                aniso_z = opt.inputsz[0] // opt.sr_scale_z
+                opt.inputsz = (aniso_z, opt.inputsz[1], opt.inputsz[2])
+                opt.in_spec = dict(input=(1,) + opt.inputsz)
 
         if opt.vec:
             opt.out_spec['embedding'] = (opt.vec,) + opt.outputsz
@@ -333,10 +358,17 @@ class Options(object):
             # infer stride from overlap
             opt.overlap = self.get_overlap(opt.outputsz, opt.overlap)
             opt.stride = tuple(int(f-o) for f,o in zip(opt.outputsz, opt.overlap))
-        else:            
+        else:
             # infer overlap from stride
             stride = np.array(opt.stride) * np.array(opt.scale)
             opt.overlap = tuple(int(f-s) for f,s in zip(opt.outputsz, stride))
+
+        # SR aniso: convert stride from iso output space to aniso input space
+        if opt.sr_mode and not opt.sr_input_iso:
+            opt.stride = tuple(
+                int(s // sc) for s, sc in zip(opt.stride, opt.scale)
+            )
+
         opt.scan_params = dict(stride=opt.stride, blend=opt.blend, scale=opt.scale)
 
         # Output tagging

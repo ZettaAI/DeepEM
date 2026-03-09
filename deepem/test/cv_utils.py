@@ -107,6 +107,10 @@ def ingest(data, opt, tag=None):
         if opt.tilt_series_crop is not None:
             outputsz = np.array(opt.fov) * np.array(opt.scale)
             patch_offset = (outputsz - np.array(opt.tilt_series_crop)) // 2
+    elif getattr(opt, 'sr_mode', False) and not getattr(opt, 'sr_input_iso', False):
+        # SR aniso: offset between iso model input and iso output, in aniso coords
+        iso_offset = (np.array(opt.sr_iso_inputsz) - np.array(opt.outputsz)) // 2
+        patch_offset = iso_offset // np.array(opt.scale)
     else:
         patch_offset = (np.array(opt.inputsz) - np.array(opt.outputsz)) // 2
 

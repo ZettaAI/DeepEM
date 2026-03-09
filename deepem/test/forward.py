@@ -8,6 +8,42 @@ from dataprovider3 import Dataset, ForwardScanner
 from deepem.test import fwd_utils
 
 
+def _zero_pad_z(data: np.ndarray, sr_scale_z: int) -> np.ndarray:
+    """Zero-pad input in Z for SR inference (aniso input).
+
+    Places real sections at offset::sr_scale_z where offset = sr_scale_z // 2.
+
+    Args:
+        data: 5D array (B, C, Z_aniso, Y, X)
+        sr_scale_z: Upsampling factor in Z
+
+    Returns:
+        Zero-padded array (B, C, Z_aniso * sr_scale_z, Y, X)
+    """
+    offset = sr_scale_z // 2
+    b, c, z, y, x = data.shape
+    padded = np.zeros((b, c, z * sr_scale_z, y, x), dtype=data.dtype)
+    padded[:, :, offset::sr_scale_z, :, :] = data
+    return padded
+
+
+def _avg_downsample_and_zero_pad_z(data: np.ndarray, sr_scale_z: int) -> np.ndarray:
+    """Avg-downsample in Z then zero-pad for SR inference (iso input).
+
+    Degrades iso input to look like zero-padded aniso, matching training.
+
+    Args:
+        data: 5D array (B, C, Z_iso, Y, X) where Z_iso is divisible by sr_scale_z
+        sr_scale_z: Downsampling/upsampling factor in Z
+
+    Returns:
+        Zero-padded array with same shape as input
+    """
+    b, c, z, y, x = data.shape
+    downsampled = data.reshape(b, c, z // sr_scale_z, sr_scale_z, y, x).mean(axis=3)
+    return _zero_pad_z(downsampled, sr_scale_z)
+
+
 class Forward(object):
     """
     Forward scanning.
@@ -22,6 +58,11 @@ class Forward(object):
         self.variance = opt.variance
         self.precomputed = (opt.blend == 'precomputed')
         self.mixed_precision = opt.mixed_precision
+
+        # Super-resolution
+        self.sr_mode = getattr(opt, 'sr_mode', False)
+        self.sr_scale_z = getattr(opt, 'sr_scale_z', 1)
+        self.sr_input_iso = getattr(opt, 'sr_input_iso', False)
 
     def __call__(self, model, scanner):
         dataset = scanner.dataset
@@ -159,6 +200,11 @@ class Forward(object):
         inputs = dict()
         for k in sorted(self.in_spec):
             data = np.expand_dims(sample[k], axis=0)
+            if self.sr_mode and k == 'input':
+                if self.sr_input_iso:
+                    data = _avg_downsample_and_zero_pad_z(data, self.sr_scale_z)
+                else:
+                    data = _zero_pad_z(data, self.sr_scale_z)
             tensor = torch.from_numpy(data)
             inputs[k] = tensor.to(self.device)
         return inputs
