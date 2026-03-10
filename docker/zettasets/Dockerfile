@@ -35,7 +35,8 @@ RUN conda install -y h5py cython matplotlib scikit-image scikit-learn && \
 # Explicitly pin NumPy to <2 to avoid ABI issues
 RUN pip install --no-cache-dir --upgrade \
         "numpy<2" cloud-volume task-queue imgaug wandb \
-        cffi brotli fastremap imagecodecs python-etcd onnx
+        cffi brotli fastremap imagecodecs python-etcd onnx \
+        pyspng-seunglab
 
 RUN pip install --no-cache-dir \
         git+https://github.com/seung-lab/DataTools && \
