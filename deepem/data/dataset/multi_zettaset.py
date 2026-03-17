@@ -166,6 +166,10 @@ def _process_sample(
     # Determine resolution: zettaset-specific overrides zettaset_resolution
     resolution = tuple(zettaset_spec.get("resolution", zettaset_resolution))
 
+    # Per-dataset share_mask overrides global zettaset_share_mask
+    if "share_mask" in zettaset_spec:
+        kwargs = {**kwargs, "zettaset_share_mask": zettaset_spec["share_mask"]}
+
     print(f"Sample [{data_id}]")
     return {data_id: load_sample(
         zettaset.samples[sample_name],
