@@ -170,12 +170,15 @@ def _process_sample(
     if "share_mask" in zettaset_spec:
         kwargs = {**kwargs, "zettaset_share_mask": zettaset_spec["share_mask"]}
 
+    known_absent = zettaset_spec.get("known_absent", [])
+
     print(f"Sample [{data_id}]")
     return {data_id: load_sample(
         zettaset.samples[sample_name],
         padding,
         no_mask,
         resolution,
+        known_absent=known_absent,
         **kwargs,
     )}
 
@@ -189,6 +192,7 @@ def load_sample(
     requires_binarize: list[str] = [],
     zettaset_share_mask: str | None = None,
     semantic_mapping: dict[str, int] = {},
+    known_absent: list[str] = [],
     **kwargs
 ) -> dict[str, np.ndarray]:
     """Load image and labels from a Sample."""
@@ -253,19 +257,29 @@ def load_sample(
                 break
 
         if selected_key_spec is None and allow_zero_fill:
-            # Zero-fill with all-zero mask (no loss contribution).
             # Shape derived from bbox (ZYX order, matching convert_array output).
             bbox_size = bbox.maxpt - bbox.minpt
             shape = tuple(int(s) for s in reversed(bbox_size))
             combined_data = np.zeros(shape, dtype="float32")
-            combined_mask = np.zeros(shape, dtype="uint8")
             target_keys = []
-            print(
-                f"\tWARNING: '{name}' - none of the fallback options "
-                f"{fallback_options} found in annotations "
-                f"{sample.annotation_names}. "
-                f"Zero-filling with all-zero mask (no loss contribution)."
-            )
+            # Check if annotation is known to be absent (negative example).
+            is_negative = any(key in known_absent for key in fallback_options)
+            if is_negative:
+                combined_mask = np.ones(shape, dtype="uint8")
+                print(
+                    f"\t'{name}' - none of the fallback options "
+                    f"{fallback_options} found in annotations "
+                    f"{sample.annotation_names}. "
+                    f"Known absent: using all-ones mask (negative example)."
+                )
+            else:
+                combined_mask = np.zeros(shape, dtype="uint8")
+                print(
+                    f"\tWARNING: '{name}' - none of the fallback options "
+                    f"{fallback_options} found in annotations "
+                    f"{sample.annotation_names}. "
+                    f"Zero-filling with all-zero mask (no loss contribution)."
+                )
         elif selected_key_spec is None:
             raise KeyError(
                 f"None of the fallback options {fallback_options} exist in "
