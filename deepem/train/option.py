@@ -31,24 +31,37 @@ def parse_class_weight(value):
         return float(value)
 
 
-def _parse_exclusions(ids):
-    """Parse ^-prefixed exclusion entries from a list of IDs.
+def _parse_train_ids(ids):
+    """Parse prefixed entries from train_ids.
+
+    Prefix syntax:
+        hemibrain           -> include in train
+        ^hemibrain:lobula   -> exclude from train
+        +val:hemibrain:lobula  -> add to val (keep in train)
+        ^+val:hemibrain:lobula -> exclude from train + add to val
 
     Args:
-        ids: List of data IDs, where ^-prefixed entries are exclusions.
-            e.g., ["hemibrain", "^hemibrain:lobula", "cerebellum:vol001"]
+        ids: List of data IDs with optional prefixes.
 
     Returns:
-        (include_ids, exclude_ids): Two lists with the ^ prefix stripped.
+        (train_ids, exclude_ids, val_ids): Three lists with prefixes stripped.
     """
-    include_ids = []
+    train_ids = []
     exclude_ids = []
+    val_ids = []
     for x in ids:
-        if x.startswith('^'):
+        if x.startswith('^+val:'):
+            data_id = x[len('^+val:'):]
+            exclude_ids.append(data_id)
+            val_ids.append(data_id)
+        elif x.startswith('+val:'):
+            data_id = x[len('+val:'):]
+            val_ids.append(data_id)
+        elif x.startswith('^'):
             exclude_ids.append(x[1:])
         else:
-            include_ids.append(x)
-    return include_ids, exclude_ids
+            train_ids.append(x)
+    return train_ids, exclude_ids, val_ids
 
 
 class Options(object):
@@ -268,8 +281,9 @@ class Options(object):
         if opt.samwise_map is not None:
             opt.samwise_map = samwise.parse.parsemap(opt.samwise_map)
 
-        # Training/validation sets: parse ^exclusions from train_ids
-        opt.train_ids, opt.train_exclude = _parse_exclusions(opt.train_ids)
+        # Training/validation sets: parse prefixed entries from train_ids
+        opt.train_ids, opt.train_exclude, inline_val_ids = _parse_train_ids(opt.train_ids)
+        opt.val_ids = opt.val_ids + inline_val_ids
         if (not opt.train_ids) or (not opt.val_ids):
             raise ValueError("Train/validation IDs unspecified")
         if opt.train_prob:
