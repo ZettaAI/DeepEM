@@ -31,6 +31,26 @@ def parse_class_weight(value):
         return float(value)
 
 
+def _parse_exclusions(ids):
+    """Parse ^-prefixed exclusion entries from a list of IDs.
+
+    Args:
+        ids: List of data IDs, where ^-prefixed entries are exclusions.
+            e.g., ["hemibrain", "^hemibrain:lobula", "cerebellum:vol001"]
+
+    Returns:
+        (include_ids, exclude_ids): Two lists with the ^ prefix stripped.
+    """
+    include_ids = []
+    exclude_ids = []
+    for x in ids:
+        if x.startswith('^'):
+            exclude_ids.append(x[1:])
+        else:
+            include_ids.append(x)
+    return include_ids, exclude_ids
+
+
 class Options(object):
     """
     Training options.
@@ -70,6 +90,8 @@ class Options(object):
         self.parser.add_argument('--train_prob', type=float, default=None, nargs='+')
         self.parser.add_argument('--val_ids', type=str, default=[], nargs='+')
         self.parser.add_argument('--val_prob', type=float, default=None, nargs='+')
+        self.parser.add_argument('--exclude_val', action='store_true',
+                                 help='Exclude val_ids from train_ids (for superset overlap)')
 
         # Training
         self.parser.add_argument('--max_iter', type=int, default=1000000)
@@ -246,7 +268,8 @@ class Options(object):
         if opt.samwise_map is not None:
             opt.samwise_map = samwise.parse.parsemap(opt.samwise_map)
 
-        # Training/validation sets
+        # Training/validation sets: parse ^exclusions from train_ids
+        opt.train_ids, opt.train_exclude = _parse_exclusions(opt.train_ids)
         if (not opt.train_ids) or (not opt.val_ids):
             raise ValueError("Train/validation IDs unspecified")
         if opt.train_prob:

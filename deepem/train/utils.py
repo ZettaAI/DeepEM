@@ -221,10 +221,17 @@ def load_data(opt, local_rank):
         **opt.data_params
     )
 
-    # Train
-    train_data = {k: data[k] for k in opt.train_ids}
+    # Train (with exclusion filtering)
+    exclude_ids = list(opt.train_exclude)
+    if opt.exclude_val:
+        exclude_ids.extend(opt.val_ids)
+    train_data, excluded_ids = _filter_train_data(
+        data, opt.train_ids, exclude_ids, opt.zettaset_specs
+    )
     if opt.train_prob:
         prob = dict(zip(opt.train_ids, opt.train_prob))
+        # Drop prob entries for fully-excluded train_ids
+        prob = {k: v for k, v in prob.items() if k in train_data}
     else:
         prob = None
     train_loader = Data(opt, train_data, is_train=True, prob=prob, local_rank=local_rank)
@@ -238,6 +245,69 @@ def load_data(opt, local_rank):
     val_loader = Data(opt, val_data, is_train=False, prob=prob, local_rank=local_rank)
 
     return train_loader, val_loader
+
+
+def _filter_train_data(data, train_ids, exclude_ids, zettaset_specs):
+    """Filter excluded sample IDs out of training data.
+
+    Handles both superset and sample-level exclusions:
+    - ^hemibrain:lobula  -> removes that sample from the hemibrain superset
+    - ^hemibrain         -> expands to all samples, removes them all
+
+    Args:
+        data: Loaded data dict from multi_zettaset.load_data.
+        train_ids: List of training data IDs (inclusions only).
+        exclude_ids: List of IDs to exclude (^ prefix already stripped).
+        zettaset_specs: Zettaset specifications dict (may be empty/None).
+
+    Returns:
+        (filtered_data, excluded_samples): Filtered training data dict and
+            the set of sample IDs that were actually excluded.
+    """
+    if not exclude_ids:
+        return {k: data[k] for k in train_ids}, set()
+
+    zettaset_specs = zettaset_specs or {}
+
+    # Expand superset exclusions to sample-level
+    expanded_excludes = set()
+    for eid in exclude_ids:
+        if eid in zettaset_specs and eid in data and isinstance(data[eid], dict):
+            # Superset exclusion -> expand to all its samples
+            expanded_excludes.update(data[eid].keys())
+        else:
+            expanded_excludes.add(eid)
+
+    # Filter train data
+    result = {}
+    excluded_samples = set()
+    for k in train_ids:
+        if k in zettaset_specs and isinstance(data.get(k), dict):
+            # Superset: filter out excluded children
+            original = data[k]
+            filtered = {sk: sv for sk, sv in original.items()
+                        if sk not in expanded_excludes}
+            newly_excluded = set(original.keys()) - set(filtered.keys())
+            if newly_excluded:
+                excluded_samples.update(newly_excluded)
+                print(f"Excluded from '{k}': {sorted(newly_excluded)}")
+            if filtered:
+                result[k] = filtered
+                print(f"Remaining in '{k}': {sorted(filtered.keys())}")
+            else:
+                print(f"WARNING: All samples excluded from superset '{k}'")
+        else:
+            # Sample ID: skip if excluded
+            if k in expanded_excludes:
+                excluded_samples.add(k)
+                print(f"Excluded: {k}")
+            else:
+                result[k] = data[k]
+
+    if excluded_samples:
+        print(f"Total excluded from training: {len(excluded_samples)} sample(s)")
+
+    return result, excluded_samples
 
 
 def forward(model, sample, opt):
