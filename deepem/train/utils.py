@@ -216,7 +216,7 @@ def load_data(opt, local_rank):
     )
     # Drop CLI val_ids that are supersets with spec-level val (e.g., seuron default)
     if supersede_val:
-        supersede_set = set(supersede_val)
+        supersede_set = set(supersede_val) | {"all"}
         dropped = [v for v in opt.val_ids if v in supersede_set]
         if dropped:
             print(f"Dropping superset val_ids (superseded by spec): {dropped}")
