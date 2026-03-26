@@ -283,9 +283,19 @@ class Options(object):
 
         # Training/validation sets: parse prefixed entries from train_ids
         opt.train_ids, opt.train_exclude, inline_val_ids = _parse_train_ids(opt.train_ids)
+        # Expand "all" keyword to all zettaset_specs keys
+        if opt.train_ids == ["all"] and opt.zettaset_specs:
+            opt.train_ids = list(opt.zettaset_specs.keys())
+            print(f"Expanded 'all' to train_ids: {opt.train_ids}")
         opt.val_ids = opt.val_ids + inline_val_ids
-        if (not opt.train_ids) or (not opt.val_ids):
-            raise ValueError("Train/validation IDs unspecified")
+        # val_ids may also come from zettaset_specs "val" field (resolved in load_data)
+        has_spec_val = any(
+            "val" in spec for spec in opt.zettaset_specs.values()
+        ) if opt.zettaset_specs else False
+        if not opt.train_ids:
+            raise ValueError("Train IDs unspecified")
+        if (not opt.val_ids) and (not has_spec_val):
+            raise ValueError("Validation IDs unspecified")
         if opt.train_prob:
             if len(opt.train_ids) != len(opt.train_prob):
                 error_message = (
