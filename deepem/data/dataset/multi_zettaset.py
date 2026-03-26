@@ -125,8 +125,16 @@ def _process_zettaset(
 
     data = {}
     zettaset = zettasets[zettaset_name]
+    exclude = set(zettaset_specs.get(zettaset_name, {}).get("exclude", []))
+
+    if exclude:
+        print(f"Zettaset '{zettaset_name}' exclude: {sorted(exclude)}")
+        print(f"Zettaset '{zettaset_name}' loading: "
+              f"{sorted(s for s in zettaset.sample_names if s not in exclude)}")
 
     for sample_name in zettaset.sample_names:
+        if sample_name in exclude:
+            continue
         full_name = f"{zettaset_name}:{sample_name}"
         data.update(_process_sample(full_name, zettasets, zettaset_specs, **kwargs))
 
