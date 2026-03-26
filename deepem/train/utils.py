@@ -210,6 +210,19 @@ def load_optimizer_state(optimizer, fpath, chkpt_num, is_frontier=False):
 
 
 def load_data(opt, local_rank):
+    # Extract val and train_prob from zettaset_specs
+    spec_val_ids, spec_exclude_ids, supersede_val = _extract_val_from_specs(
+        opt.zettaset_specs
+    )
+    # Drop CLI val_ids that are supersets with spec-level val (e.g., seuron default)
+    if supersede_val:
+        supersede_set = set(supersede_val)
+        dropped = [v for v in opt.val_ids if v in supersede_set]
+        if dropped:
+            print(f"Dropping superset val_ids (superseded by spec): {dropped}")
+        opt.val_ids = [v for v in opt.val_ids if v not in supersede_set]
+    opt.val_ids = opt.val_ids + spec_val_ids
+
     data_ids = list(set().union(opt.train_ids, opt.val_ids))
     if opt.zettaset_specs:
         from deepem.data.dataset import multi_zettaset as mod
@@ -222,7 +235,7 @@ def load_data(opt, local_rank):
     )
 
     # Train (with exclusion filtering)
-    exclude_ids = list(opt.train_exclude)
+    exclude_ids = list(opt.train_exclude) + spec_exclude_ids
     if opt.exclude_val:
         exclude_ids.extend(opt.val_ids)
     train_data, excluded_ids = _filter_train_data(
@@ -233,11 +246,11 @@ def load_data(opt, local_rank):
         # Drop prob entries for fully-excluded train_ids
         prob = {k: v for k, v in prob.items() if k in train_data}
     else:
-        prob = None
+        prob = _extract_train_prob_from_specs(opt.zettaset_specs, train_data)
     train_loader = Data(opt, train_data, is_train=True, prob=prob, local_rank=local_rank)
 
     # Validation
-    val_data = {k: data[k] for k in opt.val_ids}
+    val_data = _build_val_data(data, opt.val_ids, opt.zettaset_specs)
     if opt.val_prob:
         prob = dict(zip(opt.val_ids, opt.val_prob))
     else:
@@ -308,6 +321,92 @@ def _filter_train_data(data, train_ids, exclude_ids, zettaset_specs):
         print(f"Total excluded from training: {len(excluded_samples)} sample(s)")
 
     return result, excluded_samples
+
+
+def _extract_val_from_specs(zettaset_specs):
+    """Extract val sample IDs and their exclusion IDs from zettaset_specs.
+
+    Reads the "val" field from each zettaset spec and returns full sample IDs
+    (zettaset_name:sample_name) for both val_ids and exclude_ids. Also returns
+    superset names that have spec-level val, so that superset-level CLI val_ids
+    can be replaced (e.g., seuron's default --val_ids hemibrain gets replaced
+    by the spec-level hemibrain:lobula).
+
+    Returns:
+        (val_ids, exclude_ids, supersede_val): Three lists. supersede_val
+            contains superset names whose CLI val_ids should be dropped.
+    """
+    if not zettaset_specs:
+        return [], [], []
+    val_ids = []
+    exclude_ids = []
+    supersede_val = []
+    for name, spec in zettaset_specs.items():
+        val_samples = spec.get("val", [])
+        if not val_samples:
+            continue
+        supersede_val.append(name)
+        val_train = spec.get("val_train", False)
+        for sample_name in val_samples:
+            full_id = f"{name}:{sample_name}"
+            val_ids.append(full_id)
+            if not val_train:
+                exclude_ids.append(full_id)
+    if val_ids:
+        print(f"Val from zettaset_specs: {val_ids}")
+    return val_ids, exclude_ids, supersede_val
+
+
+def _extract_train_prob_from_specs(zettaset_specs, train_data):
+    """Extract per-zettaset train_prob from zettaset_specs.
+
+    Returns a prob dict if any spec has "train_prob", else None
+    (letting DataProvider auto-compute from num_samples).
+    """
+    if not zettaset_specs:
+        return None
+    prob = {}
+    for k in train_data:
+        spec = zettaset_specs.get(k, {})
+        if "train_prob" in spec:
+            prob[k] = spec["train_prob"]
+    if not prob:
+        return None
+    # If some but not all have train_prob, default missing ones to 1.0
+    for k in train_data:
+        if k not in prob:
+            prob[k] = 1.0
+    return prob
+
+
+def _build_val_data(data, val_ids, zettaset_specs):
+    """Build validation data dict, handling both superset and flat entries.
+
+    Val IDs from zettaset_specs "val" field are loaded as individual samples
+    but may only exist inside a superset's nested dict. This function extracts
+    them from wherever they live in the data dict.
+    """
+    zettaset_specs = zettaset_specs or {}
+    val_data = {}
+    for k in val_ids:
+        if k in data:
+            # Direct match (individual sample or superset)
+            val_data[k] = data[k]
+        elif ':' in k:
+            # Try extracting from parent superset
+            zettaset_name = k.split(':')[0]
+            if zettaset_name in data and isinstance(data[zettaset_name], dict):
+                if k in data[zettaset_name]:
+                    val_data[k] = data[zettaset_name][k]
+                else:
+                    raise KeyError(
+                        f"Val sample '{k}' not found in superset '{zettaset_name}'"
+                    )
+            else:
+                raise KeyError(f"Val sample '{k}' not found in loaded data")
+        else:
+            raise KeyError(f"Val ID '{k}' not found in loaded data")
+    return val_data
 
 
 def forward(model, sample, opt):
