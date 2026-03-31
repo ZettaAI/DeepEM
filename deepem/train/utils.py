@@ -332,6 +332,11 @@ def _extract_val_from_specs(zettaset_specs):
     can be replaced (e.g., seuron's default --val_ids hemibrain gets replaced
     by the spec-level hemibrain:lobula).
 
+    Supports:
+        "val": true          — use the entire zettaset for validation
+        "val": ["s1", "s2"]  — use specific samples for validation
+        "val_train": true    — keep val samples in training (default: false)
+
     Returns:
         (val_ids, exclude_ids, supersede_val): Three lists. supersede_val
             contains superset names whose CLI val_ids should be dropped.
@@ -347,6 +352,10 @@ def _extract_val_from_specs(zettaset_specs):
             continue
         supersede_val.append(name)
         val_train = spec.get("val_train", False)
+        if val_samples is True:
+            # Use the entire zettaset as a validation superset
+            val_ids.append(name)
+            continue
         for sample_name in val_samples:
             full_id = f"{name}:{sample_name}"
             val_ids.append(full_id)
