@@ -95,6 +95,11 @@ class Sampler:
 
         return dset
 
+    @staticmethod
+    def _is_broadcast(arr: np.ndarray) -> bool:
+        """Check if array is a broadcast (zero-stride) array."""
+        return any(s == 0 for s in arr.strides)
+
     def build_dataset(
         self,
         tag: str,
@@ -106,7 +111,10 @@ class Sampler:
 
         for key in spec.keys():
             if key.endswith("_mask"):
-                dset.add_mask(key=key, data=data[key], loc=True)
+                # Skip loc=True for broadcast arrays — np.flatnonzero would
+                # materialize a huge index array, defeating the memory savings.
+                loc = not self._is_broadcast(data[key])
+                dset.add_mask(key=key, data=data[key], loc=loc)
             else:
                 dset.add_data(key=key, data=data[key])
 
