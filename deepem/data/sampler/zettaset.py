@@ -111,8 +111,9 @@ class Sampler:
 
         for key in spec.keys():
             if key.endswith("_mask"):
-                # Skip loc=True for broadcast arrays — np.flatnonzero would
-                # materialize a huge index array, defeating the memory savings.
+                # Skip loc for broadcast arrays (absent annotations) —
+                # rejection sampling would loop forever on all-zeros masks,
+                # and all-ones masks don't need location biasing.
                 loc = not self._is_broadcast(data[key])
                 dset.add_mask(key=key, data=data[key], loc=loc)
             else:
