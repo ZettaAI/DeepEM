@@ -275,28 +275,42 @@ def load_sample(
                 break
 
         if selected_key_spec is None and allow_zero_fill:
-            # Shape derived from bbox (ZYX order, matching convert_array output).
+            # Shape derived from bbox (ZYX order, matching convert_array output),
+            # including padding so we can skip np.pad (which would materialize
+            # the full array and defeat the memory savings).
             bbox_size = bbox.maxpt - bbox.minpt
-            shape = tuple(int(s) for s in reversed(bbox_size))
-            combined_data = np.zeros(shape, dtype="float32")
+            base_shape = tuple(int(s) for s in reversed(bbox_size))
+            shape = tuple(s + 2 * p for s, p in zip(base_shape, padding))
+            # Use broadcast_to to create arrays that appear full-sized but use
+            # only a few bytes of memory (zero-stride trick).
+            combined_data = np.broadcast_to(
+                np.zeros(1, dtype="float32"), shape
+            )
             target_keys = []
+            is_absent = True  # skip padding later
             # Check if annotation is known to be absent (negative example).
             is_negative = any(key in known_absent for key in fallback_options)
             if is_negative:
-                combined_mask = np.ones(shape, dtype="uint8")
+                combined_mask = np.broadcast_to(
+                    np.ones(1, dtype="uint8"), shape
+                )
                 print(
                     f"\t'{name}' - none of the fallback options "
                     f"{fallback_options} found in annotations "
                     f"{sample.annotation_names}. "
-                    f"Known absent: using all-ones mask (negative example)."
+                    f"Known absent: using all-ones mask (negative example). "
+                    f"[broadcast, ~0 bytes]"
                 )
             else:
-                combined_mask = np.zeros(shape, dtype="uint8")
+                combined_mask = np.broadcast_to(
+                    np.zeros(1, dtype="uint8"), shape
+                )
                 print(
                     f"\tWARNING: '{name}' - none of the fallback options "
                     f"{fallback_options} found in annotations "
                     f"{sample.annotation_names}. "
-                    f"Zero-filling with all-zero mask (no loss contribution)."
+                    f"Zero-filling with all-zero mask (no loss contribution). "
+                    f"[broadcast, ~0 bytes]"
                 )
         elif selected_key_spec is None:
             raise KeyError(
@@ -311,6 +325,7 @@ def load_sample(
             target_keys = parse_target_combination(selected_key_spec)
             combined_data = None
             combined_mask = None
+            is_absent = False
 
         for key in target_keys:
             # Annotation
@@ -354,8 +369,8 @@ def load_sample(
         dset[mask_key] = combined_mask
         msk_log = f"\t{mask_key}: {dset[mask_key].shape}"
 
-        # Padding
-        if padding != (0, 0, 0):
+        # Padding (skip for absent annotations — already broadcast to padded shape)
+        if padding != (0, 0, 0) and not is_absent:
             pad_width = tuple((p, p) for p in padding)
             dset[name] = np.pad(dset[name], pad_width, "constant")
             anno_log += f" -> {dset[name].shape}"
