@@ -174,6 +174,16 @@ def _process_sample(
     # Determine resolution: zettaset-specific overrides zettaset_resolution
     resolution = tuple(zettaset_spec.get("resolution", zettaset_resolution))
 
+    # Coarse loading: load at load_resolution if specified, otherwise at resolution.
+    # When load_resolution is coarser (e.g., 32nm vs 16nm), the loaded arrays are
+    # proportionally smaller, saving RAM. The sampler is responsible for upsampling
+    # patches back to the training resolution after sampling.
+    load_resolution = tuple(zettaset_spec.get("load_resolution", resolution))
+    if load_resolution != resolution:
+        scale = tuple(l / r for l, r in zip(load_resolution, resolution))
+        padding = tuple(int(p / s) for p, s in zip(padding, scale))
+        print(f"  Coarse loading: {resolution} -> {load_resolution} (scale={scale}, padding={padding})")
+
     # Per-dataset share_mask overrides global zettaset_share_mask
     if "share_mask" in zettaset_spec:
         kwargs = {**kwargs, "zettaset_share_mask": zettaset_spec["share_mask"]}
@@ -185,7 +195,7 @@ def _process_sample(
         zettaset.samples[sample_name],
         padding,
         no_mask,
-        resolution,
+        load_resolution,
         known_absent=known_absent,
         **kwargs,
     )}

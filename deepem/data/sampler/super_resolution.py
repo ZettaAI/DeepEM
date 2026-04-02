@@ -10,10 +10,15 @@ neighbor masks (no adjacent real sections exist in aniso data).
 - Isotropic data: avg-downsample input in Z then zero-pad (emulates aniso
   input), labels/masks stay at full iso resolution for full supervision.
 - Anisotropic data: zero-pad ALL keys (input, targets, masks) in Z.
+
+Supports coarse loading (load_resolution != resolution) for memory-constrained
+datasets. Coarse-loaded datasets are sampled at reduced resolution and upsampled
+back to the training resolution before further processing.
 """
 from __future__ import annotations
 
 import numpy as np
+from scipy import ndimage
 
 from augmentor import Augment
 from dataprovider3 import DataProvider, Dataset, DataSuperset
@@ -50,6 +55,15 @@ class Sampler(BaseSampler):
 
     Uses zero-padding so the model always sees iso-shaped tensors.
 
+    Datasets are split into up to 4 groups based on two axes:
+      - isotropy: isotropic vs anisotropic
+      - load resolution: native (load_resolution == resolution) vs
+        coarse (load_resolution coarser than resolution)
+
+    Each non-empty group gets its own DataProvider with appropriately scaled
+    spec. After sampling, coarse patches are upsampled, then iso/aniso
+    processing is applied.
+
     For iso samples:
     - Input is avg-downsampled in Z then zero-padded back to iso size
     - Labels/masks stay at full iso resolution (full supervision)
@@ -77,27 +91,105 @@ class Sampler(BaseSampler):
         self.out_spec = out_spec or {}
         self.zettaset_specs = zettaset_specs or {}
 
-        # Split datasets by isotropy
-        iso_data, aniso_data = self._split_by_isotropy(data)
+        # Split datasets into 4 groups: (iso/aniso) x (native/coarse)
+        groups = self._split_datasets(data)
 
-        self.has_iso = len(iso_data) > 0
-        self.has_aniso = len(aniso_data) > 0
+        # Build DataProviders for each non-empty group
+        self.groups = {}  # name -> (DataProvider, scale_factor)
+        aniso_spec = self._make_aniso_spec(spec)
 
-        # Iso dataprovider uses iso spec directly
-        if self.has_iso:
-            self.dataprovider_iso = self.build_dataprovider(
-                iso_data, spec, aug, prob, zettaset_specs
+        for group_name, group_data in groups.items():
+            if not group_data:
+                continue
+
+            is_coarse = group_name.endswith("_coarse")
+            is_iso = group_name.startswith("iso")
+            base_spec = spec if is_iso else aniso_spec
+
+            if is_coarse:
+                scale = self._get_coarse_scale(group_data)
+                group_spec = self._scale_spec(base_spec, scale)
+            else:
+                scale = (1, 1, 1)
+                group_spec = base_spec
+
+            aug_to_use = aug if is_iso else (aug_aniso or aug)
+
+            dp = self.build_dataprovider(
+                group_data, group_spec, aug_to_use, prob, zettaset_specs
             )
+            self.groups[group_name] = (dp, scale)
 
-        # Aniso dataprovider uses aniso spec (Z / sr_scale_z)
-        if self.has_aniso:
-            aniso_spec = self._make_aniso_spec(spec)
-            self.dataprovider_aniso = self.build_dataprovider(
-                aniso_data, aniso_spec, aug_aniso or aug, prob, zettaset_specs
+        # Compute per-group sampling probabilities
+        self.group_names, self.group_probs = self._compute_group_probs(prob)
+
+    def _split_datasets(
+        self, data: dict[str, dict[str, np.ndarray]]
+    ) -> dict[str, dict]:
+        """Split data into 4 groups: (iso/aniso) x (native/coarse)."""
+        groups = {
+            "iso_native": {},
+            "iso_coarse": {},
+            "aniso_native": {},
+            "aniso_coarse": {},
+        }
+
+        for key, dataset_data in data.items():
+            zettaset_name = key.split(':')[0] if ':' in key else key
+            spec = self.zettaset_specs.get(zettaset_name, {})
+
+            is_iso = spec.get('isotropic', False)
+            is_coarse = 'load_resolution' in spec
+
+            if is_iso and not is_coarse:
+                groups["iso_native"][key] = dataset_data
+            elif is_iso and is_coarse:
+                groups["iso_coarse"][key] = dataset_data
+            elif not is_iso and not is_coarse:
+                groups["aniso_native"][key] = dataset_data
+            else:
+                groups["aniso_coarse"][key] = dataset_data
+
+        return groups
+
+    def _get_coarse_scale(
+        self, group_data: dict[str, dict[str, np.ndarray]]
+    ) -> tuple[float, float, float]:
+        """Get the scale factor for a coarse group (load_resolution / resolution).
+
+        All datasets in a coarse group must share the same scale factor.
+        """
+        scale = None
+        for key in group_data:
+            zettaset_name = key.split(':')[0] if ':' in key else key
+            spec = self.zettaset_specs.get(zettaset_name, {})
+            resolution = spec.get('resolution', [16, 16, 16])
+            load_resolution = spec.get('load_resolution', resolution)
+            s = tuple(l / r for l, r in zip(load_resolution, resolution))
+            if scale is None:
+                scale = s
+            elif scale != s:
+                raise ValueError(
+                    f"Mixed scale factors in coarse group: {scale} vs {s}. "
+                    f"All coarse datasets in the same group must share the "
+                    f"same scale factor."
+                )
+        return scale
+
+    def _scale_spec(
+        self,
+        spec: dict[str, tuple[int, int, int]],
+        scale: tuple[float, float, float],
+    ) -> dict[str, tuple[int, int, int]]:
+        """Scale a spec by the given factors (inverse: coarser res = fewer voxels)."""
+        scaled = {}
+        for key, (z, y, x) in spec.items():
+            scaled[key] = (
+                int(z / scale[0]),
+                int(y / scale[1]),
+                int(x / scale[2]),
             )
-
-        # Compute sampling weights between iso and aniso
-        self.iso_prob = self._compute_iso_prob(prob)
+        return scaled
 
     def _make_aniso_spec(
         self, spec: dict[str, tuple[int, int, int]]
@@ -108,86 +200,84 @@ class Sampler(BaseSampler):
             aniso_spec[key] = (z // self.sr_scale_z, y, x)
         return aniso_spec
 
-    def _split_by_isotropy(
-        self, data: dict[str, dict[str, np.ndarray]]
-    ) -> tuple[dict, dict]:
-        """Split data into isotropic and anisotropic datasets."""
-        iso_data = {}
-        aniso_data = {}
+    def _compute_group_probs(
+        self, prob: dict[str, float] | None,
+    ) -> tuple[list[str], list[float]]:
+        """Compute sampling probability for each non-empty group.
 
-        for key, dataset_data in data.items():
-            zettaset_name = key.split(':')[0] if ':' in key else key
-            spec = self.zettaset_specs.get(zettaset_name, {})
-            is_isotropic = spec.get('isotropic', False)
-
-            if is_isotropic:
-                iso_data[key] = dataset_data
-            else:
-                aniso_data[key] = dataset_data
-
-        return iso_data, aniso_data
-
-    def _compute_iso_prob(
-        self,
-        prob: dict[str, float] | None,
-    ) -> float:
-        """Compute probability of sampling isotropic data.
-
-        Uses valid voxel counts from each dataprovider. Aniso voxel count
-        is scaled by sr_scale_z to compensate for the smaller Z spec.
-        User-provided prob weights override voxel-count-based weighting.
+        Per-dataset train_prob is preserved:
+          P(dataset D) = P(group G) * P(D|G) = prob_D / sum_all
         """
-        if not self.has_iso:
-            return 0.0
-        if not self.has_aniso:
-            return 1.0
+        group_weights = {}
+        for group_name, (dp, _) in self.groups.items():
+            if prob:
+                w = sum(prob.get(d.tag, 1.0) for d in dp.datasets)
+            else:
+                # Weight by valid voxel count, scale up aniso
+                w = sum(d.num_samples() for d in dp.datasets)
+                if group_name.startswith("aniso"):
+                    w *= self.sr_scale_z
 
-        if prob:
-            # Use user-provided weights (already set on each dataprovider)
-            iso_total = sum(
-                prob.get(k, 1.0)
-                for dp in [self.dataprovider_iso]
-                for k in [d.tag for d in dp.datasets]
-            )
-            aniso_total = sum(
-                prob.get(k, 1.0)
-                for dp in [self.dataprovider_aniso]
-                for k in [d.tag for d in dp.datasets]
-            )
-        else:
-            # Weight by valid voxel count
-            iso_total = sum(
-                d.num_samples() for d in self.dataprovider_iso.datasets
-            )
-            # Aniso spec has Z/sr_scale_z, so scale up to match iso
-            aniso_total = sum(
-                d.num_samples() for d in self.dataprovider_aniso.datasets
-            ) * self.sr_scale_z
+            group_weights[group_name] = w
 
-        total = iso_total + aniso_total
-        return iso_total / total if total > 0 else 0.5
+        total = sum(group_weights.values())
+        names = list(group_weights.keys())
+        probs = [group_weights[n] / total for n in names] if total > 0 else []
+        return names, probs
 
     def __call__(self) -> dict[str, np.ndarray]:
-        """Sample from either isotropic or anisotropic data."""
-        sample_iso = np.random.rand() < self.iso_prob
+        """Sample from one of the dataset groups."""
+        # Pick a group
+        idx = np.random.choice(len(self.group_names), p=self.group_probs)
+        group_name = self.group_names[idx]
+        dp, scale = self.groups[group_name]
 
-        if sample_iso and self.has_iso:
-            sample = self.dataprovider_iso()
+        # Sample a patch
+        sample = dp()
+
+        # Upsample if coarse
+        if group_name.endswith("_coarse"):
+            sample = self._upsample_sample(sample, scale)
+
+        # Apply iso/aniso processing
+        if group_name.startswith("iso"):
             sample = self._process_iso_sample(sample)
             is_aniso = False
-        elif self.has_aniso:
-            sample = self.dataprovider_aniso()
+        else:
             sample = self._process_aniso_sample(sample)
             is_aniso = True
-        else:
-            sample = self.dataprovider_iso()
-            sample = self._process_iso_sample(sample)
-            is_aniso = False
 
         sample = self.postprocess(sample)
-        # Add metadata after postprocess (to_tensor expects 2D-4D arrays)
         sr_scale_z = self.sr_scale_z if is_aniso else 0
         sample['_sr_scale_z'] = np.array(sr_scale_z, dtype=np.float32)
+        return sample
+
+    def _upsample_sample(
+        self,
+        sample: dict[str, np.ndarray],
+        scale: tuple[float, float, float],
+    ) -> dict[str, np.ndarray]:
+        """Upsample a coarse-loaded patch to the training resolution.
+
+        Uses trilinear (order=1) for images, nearest-neighbor (order=0) for
+        labels and masks.
+        """
+        zoom_factors = tuple(1.0 / s for s in scale)
+
+        for key in list(sample.keys()):
+            data = sample[key]
+            if key == 'input':
+                order = 1  # trilinear
+            else:
+                order = 0  # nearest-neighbor for labels/masks
+
+            if data.ndim == 3:
+                sample[key] = ndimage.zoom(data, zoom_factors, order=order)
+            elif data.ndim == 4:
+                # (C, Z, Y, X) -> zoom spatial dims only
+                channel_zooms = (1,) + zoom_factors
+                sample[key] = ndimage.zoom(data, channel_zooms, order=order)
+
         return sample
 
     def _process_iso_sample(
