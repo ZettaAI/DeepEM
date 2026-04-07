@@ -40,7 +40,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '--key_val',
         type=json.loads,
-        default=None,
+        default={},
         help='extra key-value pairs to substitute')
     parser.add_argument(
         '--params', 
