@@ -118,8 +118,21 @@ def ingest(data, opt, tag=None):
 
      # Create info using the adjusted offset
     offset = in_bbox.minpt + patch_offset
+
+    # SR-aniso: the model output is finer in z than the input (by sr_scale_z),
+    # so the info must reflect the output resolution — NOT opt.resolution, which
+    # is in input units. Scale z-resolution down and z-offset up accordingly.
+    # SR-iso (sr_input_iso=True) has output == input resolution, so it passes
+    # through unchanged. Non-SR paths are also untouched.
+    out_resolution = opt.resolution
+    out_offset = offset
+    if getattr(opt, 'sr_mode', False) and not getattr(opt, 'sr_input_iso', False):
+        sz = opt.sr_scale_z
+        out_resolution = (opt.resolution[0], opt.resolution[1], opt.resolution[2] / sz)
+        out_offset = Vec(offset[0], offset[1], offset[2] * sz)
+
     info = make_info(num_channels, 'image', str(data.dtype), shape,
-                     opt.resolution, offset=offset, chunk_size=opt.chunk_size)
+                     out_resolution, offset=out_offset, chunk_size=opt.chunk_size)
     print(info)
 
     # Output path formatting
