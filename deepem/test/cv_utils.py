@@ -10,9 +10,9 @@ from deepem.utils import py_utils
 
 
 def make_info(num_channels, layer_type, dtype, shape, resolution,
-              offset=(0,0,0), chunk_size=(64,64,64)):
+              offset=(0,0,0), chunk_size=(64,64,64), encoding='raw'):
     return cv.CloudVolume.create_new_info(
-        num_channels, layer_type, dtype, 'raw', resolution, offset, shape,
+        num_channels, layer_type, dtype, encoding, resolution, offset, shape,
         chunk_size=chunk_size)
 
 def get_coord_bbox(cvol, opt):
@@ -76,7 +76,7 @@ def cutout(opt, gs_path, dtype='uint8', channels=0, in_mip=None, coord_mip=None)
     return np.squeeze(cutout).astype(dtype)
 
 
-def ingest(data, opt, tag=None):
+def ingest(data, opt, tag=None, layer_type='image', encoding='raw'):
     # Neuroglancer format
     data = py_utils.to_tensor(data)
     data = data.transpose((3, 2, 1, 0))
@@ -131,8 +131,9 @@ def ingest(data, opt, tag=None):
         out_resolution = (opt.resolution[0], opt.resolution[1], opt.resolution[2] / sz)
         out_offset = Vec(offset[0], offset[1], offset[2] * sz)
 
-    info = make_info(num_channels, 'image', str(data.dtype), shape,
-                     out_resolution, offset=out_offset, chunk_size=opt.chunk_size)
+    info = make_info(num_channels, layer_type, str(data.dtype), shape,
+                     out_resolution, offset=out_offset,
+                     chunk_size=opt.chunk_size, encoding=encoding)
     print(info)
 
     # Output path formatting

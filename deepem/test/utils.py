@@ -93,15 +93,88 @@ def make_forward_scanner(opt, data_name=None):
     return ForwardScanner(dataset, opt.scan_spec, **opt.scan_params)
 
 
-def save_output(output, opt, data_name=None, aug_out=None):
-    for k in output.data:
-        data = output.get_data(k)
+SEMANTIC_MAPPING = {
+    'dendrite': 1,
+    'axon': 2,
+    'soma': 3,
+    'nucleus': 4,
+    'glia': 5,
+    'extracellular_space': 6,
+    'blood_vessel': 7,
+    'other_class': 10,
+}
 
-        # Crop
-        if opt.crop_border:
-            data = py_utils.crop_border(data, opt.crop_border)
-        if opt.crop_center:
-            data = py_utils.crop_center(data, opt.crop_center)
+# Training class_dict iteration order (deepem/train/option.py); chunkflow's
+# channel_voting does argmax+1 over exactly this channel ordering.
+ARGMAX_ORDER = [
+    'blood_vessel', 'glia', 'soma', 'dendrite', 'axon',
+    'nucleus', 'extracellular_space', 'other_class',
+]
+
+
+def _crop(data, opt):
+    if opt.crop_border:
+        data = py_utils.crop_border(data, opt.crop_border)
+    if opt.crop_center:
+        data = py_utils.crop_center(data, opt.crop_center)
+    return data
+
+
+def _channel_vote(output, opt):
+    """Stack selected class heads, argmax, remap to class IDs.
+
+    Returns (voted, shape_keys) where voted has shape (1, Z, Y, X) uint8.
+    """
+    if opt.channel_voting == 'semantic_map':
+        order = [k for k in SEMANTIC_MAPPING if k in output.data]
+        remap = np.array([SEMANTIC_MAPPING[k] for k in order], dtype=np.uint8)
+    elif opt.channel_voting == 'argmax':
+        order = [k for k in ARGMAX_ORDER if k in output.data]
+        remap = np.arange(1, len(order) + 1, dtype=np.uint8)
+    else:
+        raise ValueError(f"unknown channel_voting mode: {opt.channel_voting}")
+
+    assert len(order) >= 2, f"channel_voting needs >=2 class heads, got {order}"
+
+    stacked = []
+    for k in order:
+        arr = _crop(output.get_data(k), opt)
+        assert arr.shape[0] == 1, f"head {k} must be single-channel, got {arr.shape}"
+        stacked.append(arr[0])
+    stacked = np.stack(stacked, axis=0)  # (C, Z, Y, X)
+    idx = np.argmax(stacked, axis=0).astype(np.uint8)  # (Z, Y, X)
+    voted = remap[idx][np.newaxis, ...]  # (1, Z, Y, X)
+    return voted, order
+
+
+def save_output(output, opt, data_name=None, aug_out=None):
+    channel_voting = getattr(opt, 'channel_voting', None)
+    keep_per_class = getattr(opt, 'keep_per_class', False)
+    voting_keys = set()
+
+    if channel_voting:
+        voted, voting_keys = _channel_vote(output, opt)
+        voting_keys = set(voting_keys)
+        if opt.gs_output:
+            from deepem.test import cv_utils
+            cv_utils.ingest(voted, opt,
+                            tag=opt.channel_voting_tag,
+                            layer_type='segmentation',
+                            encoding='compressed_segmentation')
+        else:
+            dname = (data_name or 'output').replace('/', '_')
+            fname = f"{dname}_{opt.channel_voting_tag}_{opt.chkpt_num}"
+            if opt.out_prefix:
+                fname = opt.out_prefix + '_' + fname
+            if opt.out_tag:
+                fname = fname + '_' + opt.out_tag
+            emio.imsave(voted, os.path.join(opt.fwd_dir, fname + ".h5"))
+
+    for k in output.data:
+        if channel_voting and k in voting_keys and not keep_per_class:
+            continue
+
+        data = _crop(output.get_data(k), opt)
 
         # Cloud-volume
         if opt.gs_output:

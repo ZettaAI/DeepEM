@@ -154,6 +154,12 @@ class Options(object):
         self.parser.add_argument('--onnx', action='store_true')
         self.parser.add_argument('--opset_version', type=int, default=10)
 
+        # Channel voting (semantic segmentation post-proc)
+        self.parser.add_argument('--channel_voting', type=str, default=None,
+                                 choices=['semantic_map', 'argmax'])
+        self.parser.add_argument('--channel_voting_tag', type=str, default='semantic')
+        self.parser.add_argument('--keep_per_class', action='store_true')
+
         self.initialized = True
 
     def parse(self):
