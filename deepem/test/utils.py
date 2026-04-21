@@ -142,8 +142,9 @@ def _channel_vote(output, opt):
         assert arr.shape[0] == 1, f"head {k} must be single-channel, got {arr.shape}"
         stacked.append(arr[0])
     stacked = np.stack(stacked, axis=0)  # (C, Z, Y, X)
-    idx = np.argmax(stacked, axis=0).astype(np.uint8)  # (Z, Y, X)
-    voted = remap[idx][np.newaxis, ...]  # (1, Z, Y, X)
+    idx = np.argmax(stacked, axis=0)  # (Z, Y, X)
+    # uint32 because compressed_segmentation requires uint32/uint64.
+    voted = remap[idx].astype(np.uint32)[np.newaxis, ...]  # (1, Z, Y, X)
     return voted, order
 
 
