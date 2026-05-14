@@ -386,8 +386,8 @@ class Options(object):
             if loss_w > 0:
                 num_channels = spec.resolve_channels(opt)
                 assert num_channels > 0
-                opt.out_spec[spec.out_name] = (num_channels,) + opt.outputsz
-                opt.loss_weight[spec.out_name] = loss_w
+                opt.out_spec[spec.internal_name] = (num_channels,) + opt.outputsz
+                opt.loss_weight[spec.internal_name] = loss_w
                 class_keys.append(flag_name)
 
         # Mito-to-cell assignment hacks

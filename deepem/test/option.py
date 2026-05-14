@@ -222,7 +222,7 @@ class Options(object):
             if flag_name in ('vec', 'long'):
                 continue  # Integer-valued in test; handled below.
             if getattr(opt, flag_name, False):
-                opt.out_spec[spec.out_name] = (spec.resolve_channels(opt),) + opt.outputsz
+                opt.out_spec[spec.internal_name] = (spec.resolve_channels(opt),) + opt.outputsz
 
         # Integer-valued channel flags (legacy CLI shape).
         if opt.vec:
