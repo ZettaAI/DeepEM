@@ -83,6 +83,11 @@ REGISTRY: dict[str, ClassSpec] = {
     # Embedding (consumed by MeanLoss / metric learning)
     'vec':      ClassSpec(internal_name='embedding',              channels=lambda opt: opt.embed_dim),
     'mito_emb': ClassSpec(internal_name='mitochondria_embedding', channels=lambda opt: opt.mito_emb_dim),
+
+    # APEX detection
+    'apex':     ClassSpec(internal_name='apex',              binarize=True),
+    'apex_mit': ClassSpec(internal_name='apex_mitochondria', binarize=True),
+    'apex_cyt': ClassSpec(internal_name='apex_cytosol',      binarize=True),
 }
 
 
