@@ -85,9 +85,12 @@ REGISTRY: dict[str, ClassSpec] = {
     'mito_emb': ClassSpec(internal_name='mitochondria_embedding', channels=lambda opt: opt.mito_emb_dim),
 
     # APEX detection
-    'apex':     ClassSpec(internal_name='apex',              binarize=True),
-    'apex_mit': ClassSpec(internal_name='apex_mitochondria', binarize=True),
-    'apex_cyt': ClassSpec(internal_name='apex_cytosol',      binarize=True),
+    'apex':     ClassSpec(internal_name='apex',                       binarize=True),
+    'apex_er':  ClassSpec(internal_name='apex_endoplasmic_reticulum', binarize=True),
+    'apex_mit': ClassSpec(internal_name='apex_mitochondria',          binarize=True),
+    'apex_cyt': ClassSpec(internal_name='apex_cytosol',               binarize=True),
+    'apex_nuc': ClassSpec(internal_name='apex_nucleus',               binarize=True),
+    'apex_sv':  ClassSpec(internal_name='apex_synaptic_vesicles',     binarize=True),
 }
 
 
