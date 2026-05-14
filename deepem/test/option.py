@@ -55,32 +55,24 @@ class Options(object):
         self.parser.add_argument('--delta_d', type=float, default=1.5)
         self.parser.add_argument('--scale_init', type=float, default=1.0)
 
-        # Multiclass detection
-        self.parser.add_argument('--aff',  action='store_true')
+        # Per-class enable flags — auto-declared from the central registry.
+        # `vec` and `long` take integer channel counts (legacy), so they are
+        # declared explicitly and skipped here.
+        from deepem.data.classes import REGISTRY as CLASS_REGISTRY
+        for flag_name in CLASS_REGISTRY:
+            if flag_name in ('vec', 'long'):
+                continue
+            self.parser.add_argument(f'--{flag_name}', action='store_true')
+
         self.parser.add_argument('--long', type=int, default=0)
         self.parser.add_argument('--aff_deprecated', type=int, default=None)
-        self.parser.add_argument('--bdr',  action='store_true')
-        self.parser.add_argument('--syn',  action='store_true')
-        self.parser.add_argument('--psd',  action='store_true')
-        self.parser.add_argument('--mit',  action='store_true')
-        self.parser.add_argument('--mito_to_cell', action='store_true')
-        self.parser.add_argument('--mye',  action='store_true')
         self.parser.add_argument('--mye_thresh', type=float, default=0.5)
-        self.parser.add_argument('--blv',  action='store_true')
         self.parser.add_argument('--blv_num_channels', type=int, default=1)
-        self.parser.add_argument('--glia', action='store_true')
         self.parser.add_argument('--sem',  action='store_true')
-        self.parser.add_argument('--img',  action='store_true')
         self.parser.add_argument('--merge_classes', type=str, default=[], nargs='+')
 
         # Semantic segmentation
         self.parser.add_argument('--semantic', action='store_true')
-        self.parser.add_argument('--dend', action='store_true')  # Dendrite
-        self.parser.add_argument('--axon', action='store_true')  # Axon
-        self.parser.add_argument('--soma', action='store_true')  # Soma
-        self.parser.add_argument('--nucl', action='store_true')  # Nucleus
-        self.parser.add_argument('--ecs',  action='store_true')  # Extracellular space
-        self.parser.add_argument('--other', action='store_true') # Other class
 
         # Test-time augmentation
         self.parser.add_argument('--test_aug', type=int, default=None, nargs='+')
@@ -224,49 +216,33 @@ class Options(object):
                 opt.inputsz = (aniso_z, opt.inputsz[1], opt.inputsz[2])
                 opt.in_spec = dict(input=(1,) + opt.inputsz)
 
+        # Per-class out_spec entries (driven by class registry).
+        from deepem.data.classes import REGISTRY as CLASS_REGISTRY
+        for flag_name, spec in CLASS_REGISTRY.items():
+            if flag_name in ('vec', 'long'):
+                continue  # Integer-valued in test; handled below.
+            if getattr(opt, flag_name, False):
+                opt.out_spec[spec.out_name] = (spec.resolve_channels(opt),) + opt.outputsz
+
+        # Integer-valued channel flags (legacy CLI shape).
         if opt.vec:
             opt.out_spec['embedding'] = (opt.vec,) + opt.outputsz
-        if opt.aff:
-            opt.out_spec['affinity'] = (3,) + opt.outputsz
+        if opt.long:
+            opt.out_spec['long_range'] = (opt.long,) + opt.outputsz
         if opt.aff_deprecated:
             opt.out_spec['affinity'] = (opt.aff_deprecated,) + opt.outputsz
-        if opt.bdr:
-            opt.out_spec['boundary'] = (1,) + opt.outputsz
-        if opt.syn:
-            opt.out_spec['synapse'] = (1,) + opt.outputsz
-        if opt.psd:
-            opt.out_spec['synapse'] = (1,) + opt.outputsz
-        if opt.mit:
-            opt.out_spec['mitochondria'] = (1,) + opt.outputsz
+
+        # mito_to_cell also modifies in_spec.
         if opt.mito_to_cell:
             opt.in_spec['input_mitochondria'] = (1,) + opt.inputsz
-            opt.out_spec['mitochondria_to_cell'] = (1,) + opt.outputsz
-        if opt.mye:
-            opt.out_spec['myelin'] = (1,) + opt.outputsz
-        if opt.blv:
-            opt.out_spec['blood_vessel'] = (opt.blv_num_channels,) + opt.outputsz
-        if opt.glia:
-            opt.out_spec['glia'] = (1,) + opt.outputsz
+
+        # --sem: shorthand for enabling all combined semantic-segmentation heads.
         if opt.sem:
             opt.out_spec['soma'] = (1,) + opt.outputsz
             opt.out_spec['axon'] = (1,) + opt.outputsz
             opt.out_spec['dendrite'] = (1,) + opt.outputsz
             opt.out_spec['glia'] = (1,) + opt.outputsz
             opt.out_spec['bvessel'] = (1,) + opt.outputsz
-        if opt.img:
-            opt.out_spec['image'] = (1,) + opt.outputsz
-        if opt.dend:
-            opt.out_spec['dendrite'] = (1,) + opt.outputsz
-        if opt.axon:
-            opt.out_spec['axon'] = (1,) + opt.outputsz
-        if opt.soma:
-            opt.out_spec['soma'] = (1,) + opt.outputsz
-        if opt.nucl:
-            opt.out_spec['nucleus'] = (1,) + opt.outputsz
-        if opt.ecs:
-            opt.out_spec['extracellular_space'] = (1,) + opt.outputsz
-        if opt.other:
-            opt.out_spec['other_class'] = (1,) + opt.outputsz
 
         # Semantic segmentation
         if opt.semantic:
