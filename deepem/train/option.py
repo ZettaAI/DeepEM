@@ -205,6 +205,9 @@ class Options(object):
                                  help='Enable super-resolution mode for mixed iso/aniso training')
         self.parser.add_argument('--sr_scale_z', type=int, default=5,
                                  help='Z upsampling factor (default: 5 for 40nm:8nm ratio)')
+        self.parser.add_argument('--sr_iso_full_prob', type=float, default=0.0,
+                                 help='Probability that an isotropic sample passes its full-resolution '
+                                      'input unchanged instead of being degraded (default: 0.0)')
 
         # Long-range affinity
         self.parser.add_argument('--long', type=float, default=0)

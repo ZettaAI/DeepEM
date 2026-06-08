@@ -68,12 +68,14 @@ class Sampler(BaseSampler):
         aug_aniso: Augment | None = None,
         sr_mode: bool = False,
         sr_scale_z: int = 5,
+        sr_iso_full_prob: float = 0.0,
         out_spec: dict[str, tuple[int, ...]] | None = None,
         **kwargs,
     ):
         self.is_train = is_train
         self.sr_mode = sr_mode
         self.sr_scale_z = sr_scale_z
+        self.sr_iso_full_prob = sr_iso_full_prob
         self.out_spec = out_spec or {}
         self.zettaset_specs = zettaset_specs or {}
 
@@ -198,7 +200,12 @@ class Sampler(BaseSampler):
 
         Avg-downsample input in Z then zero-pad back to iso size (emulates
         zero-padded aniso input). Labels/masks stay at full iso resolution.
+
+        With probability sr_iso_full_prob, pass the full-resolution input
+        unchanged (no degradation), so the model also sees full iso input.
         """
+        if self.sr_iso_full_prob > 0 and np.random.rand() < self.sr_iso_full_prob:
+            return sample
         for key in list(sample.keys()):
             if key == 'input':
                 sample[key] = _avg_downsample_and_zero_pad_z(

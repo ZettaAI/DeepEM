@@ -63,6 +63,7 @@ class Data(object):
         if getattr(opt, 'sr_mode', False):
             sampler_kwargs['sr_mode'] = opt.sr_mode
             sampler_kwargs['sr_scale_z'] = opt.sr_scale_z
+            sampler_kwargs['sr_iso_full_prob'] = getattr(opt, 'sr_iso_full_prob', 0.0)
             sampler_kwargs['out_spec'] = opt.out_spec
             sampler_kwargs['aug_aniso'] = aug_aniso
             spec = mod.get_spec(
