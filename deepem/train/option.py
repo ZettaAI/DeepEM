@@ -140,6 +140,14 @@ class Options(object):
         # Mean-based loss
         self.parser.add_argument('--metric_loss', default='MeanLoss')
         self.parser.add_argument('--scale_init', type=float, default=1.0)
+
+        # Embedding-decoding heads (rsunet_embed_iso)
+        self.parser.add_argument('--embed_decode_kernel', type=vec3, default=None,
+                                 help='Kernel for the per-task decoding conv that reads the '
+                                      'embedding (default: 5 5 5, cubic for isotropic models)')
+        self.parser.add_argument('--embed_stop_grad', action='store_true',
+                                 help='Detach the embedding before the task heads so it is shaped '
+                                      'only by the metric loss (heads become pure decoders)')
         self.parser.add_argument('--alpha', type=float, default=1.0)
         self.parser.add_argument('--beta', type=float, default=1.0)
         self.parser.add_argument('--gamma', type=float, default=0.001)
