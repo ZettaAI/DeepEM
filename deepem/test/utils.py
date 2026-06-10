@@ -93,19 +93,11 @@ def make_forward_scanner(opt, data_name=None):
     return ForwardScanner(dataset, opt.scan_spec, **opt.scan_params)
 
 
-SEMANTIC_MAPPING = {
-    'dendrite': 1,
-    'axon': 2,
-    'soma': 3,
-    'nucleus': 4,
-    'glia': 5,
-    'extracellular_space': 6,
-    'blood_vessel': 7,
-    'other_class': 10,
-}
+from deepem.data.classes import semantic_mapping as _semantic_mapping
+SEMANTIC_MAPPING = _semantic_mapping()
 
-# Training class_dict iteration order (deepem/train/option.py); chunkflow's
-# channel_voting does argmax+1 over exactly this channel ordering.
+# chunkflow's channel_voting does argmax+1 over exactly this channel ordering.
+# Frozen contract with chunkflow — do not auto-derive from REGISTRY.
 ARGMAX_ORDER = [
     'blood_vessel', 'glia', 'soma', 'dendrite', 'axon',
     'nucleus', 'extracellular_space', 'other_class',

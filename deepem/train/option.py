@@ -217,43 +217,25 @@ class Options(object):
                                  help='Probability that an isotropic sample passes its full-resolution '
                                       'input unchanged instead of being degraded (default: 0.0)')
 
-        # Long-range affinity
-        self.parser.add_argument('--long', type=float, default=0)
+        # Long-range affinity edges (--long weight comes from class registry).
         self.parser.add_argument('--edges', type=vec3, default=[], nargs='+')
 
-        # Multiclass detection
-        self.parser.add_argument('--aff', type=float, default=0)  # Affinity
-        self.parser.add_argument('--bdr', type=float, default=0)  # Boundary
-        self.parser.add_argument('--syn', type=float, default=0)  # Synapse
-        self.parser.add_argument('--psd', type=float, default=0)  # Synapse
-        self.parser.add_argument('--mit', type=float, default=0)  # Mitochondria
-        self.parser.add_argument('--mye', type=float, default=0)  # Myelin
-        self.parser.add_argument('--fld', type=float, default=0)  # Fold
-        self.parser.add_argument('--blv', type=float, default=0)  # Blood vessel
+        # Per-class loss weights — auto-declared from the central registry.
+        # To add a new task, add an entry to deepem/data/classes.py REGISTRY.
+        from deepem.data.classes import REGISTRY as CLASS_REGISTRY
+        for flag_name in CLASS_REGISTRY:
+            self.parser.add_argument(f'--{flag_name}', type=float, default=0)
+
+        # Auxiliary knobs referenced by class specs / dataset.
         self.parser.add_argument('--blv_num_channels', type=int, default=1)
-        self.parser.add_argument('--glia', type=float, default=0) # Glia
         self.parser.add_argument('--glia_mask', action='store_true')
-        self.parser.add_argument('--img', type=float, default=0)  # Image
-        self.parser.add_argument('--mito_to_cell', type=float, default=0)  # Mito to cell
-        self.parser.add_argument('--mito_to_cell_mode', type=str, default='random')  # Mito to cell mode
+        self.parser.add_argument('--mito_to_cell_mode', type=str, default='random')
         self.parser.add_argument('--merge_classes', type=str, default=[], nargs='+')  # for onnx export
+        self.parser.add_argument('--embed_dim', type=int, default=12)
+        self.parser.add_argument('--mito_emb_dim', type=int, default=6)
 
         # Semantic segmentation
         self.parser.add_argument('--sem', action='store_true')
-        self.parser.add_argument('--dend', type=float, default=0)  # Dendrite
-        self.parser.add_argument('--axon', type=float, default=0)  # Axon
-        self.parser.add_argument('--soma', type=float, default=0)  # Soma
-        self.parser.add_argument('--nucl', type=float, default=0)  # Nucleus
-        self.parser.add_argument('--ecs',  type=float, default=0)  # Extracellular space
-        self.parser.add_argument('--other', type=float, default=0) # Other class
-
-        # Metric learning
-        self.parser.add_argument('--vec', type=float, default=0)
-        self.parser.add_argument('--embed_dim', type=int, default=12)
-
-        # Mitochondria embedding
-        self.parser.add_argument('--mito_emb', type=float, default=0)
-        self.parser.add_argument('--mito_emb_dim', type=int, default=6)
 
         # Test training
         self.parser.add_argument('--test', action='store_true')
@@ -393,56 +375,14 @@ class Options(object):
         opt.aug_params['sr_mode'] = opt.sr_mode
         opt.aug_params['sr_scale_z'] = opt.sr_scale_z
 
-        # Multiclass detection
-        class_keys = list()
-        class_dict = {
-            'aff':  ('affinity', 3),
-            'long': ('long_range', len(opt.edges)),
-            'bdr':  ('boundary', 1),
-            'syn':  ('synapse', 1),
-            'psd':  ('synapse', 1),
-            'mit':  ('mitochondria', 1),
-            'mye':  ('myelin', 1),
-            'fld':  ('fold', 1),
-            'blv':  ('blood_vessel', opt.blv_num_channels),
-            'glia': ('glia', 1),
-            'soma': ('soma', 1),
-            'img':  ('image', 1),
-            'vec':  ('embedding', opt.embed_dim),
-            'dend': ('dendrite', 1),
-            'axon': ('axon', 1),
-            'nucl': ('nucleus', 1),
-            'ecs':  ('extracellular_space', 1),
-            'other':  ('other_class', 1),
-            'mito_to_cell': ('mitochondria_to_cell', 1),
-            'mito_emb': ('mitochondria_embedding', opt.mito_emb_dim),
-        }
-
-        semantic_mapping = {
-            'dendrite': 1,
-            'axon': 2,
-            'soma': 3,
-            'nucleus': 4,
-            'glia': 5,
-            'extracellular_space': 6,
-            'blood_vessel': 7,
-            'other_class': 10,
-        }
-
-        requires_binarize = [
-            "synapse",
-            "mitochondria",
-            "myelin",
-            "fold",
-            "glia",
-            "soma",
-        ]
-
-        if opt.blv_num_channels == 1:
-            requires_binarize.append("blood_vessel")
-
-        if opt.sem:
-            requires_binarize = [x for x in requires_binarize if x not in semantic_mapping]
+        # Multiclass detection (driven by deepem/data/classes.py REGISTRY).
+        from deepem.data.classes import (
+            REGISTRY as CLASS_REGISTRY,
+            semantic_mapping as _semantic_mapping_from_registry,
+            requires_binarize as _requires_binarize_from_registry,
+        )
+        semantic_mapping = _semantic_mapping_from_registry()
+        requires_binarize = _requires_binarize_from_registry(opt)
 
         # Test training
         if opt.test:
@@ -451,14 +391,15 @@ class Options(object):
             opt.avgs_intv = 10
             opt.imgs_intv = 100
 
-        for k, v in class_dict.items():
-            loss_w = args[k]
+        class_keys = list()
+        for flag_name, spec in CLASS_REGISTRY.items():
+            loss_w = args[flag_name]
             if loss_w > 0:
-                output_name, num_channels = v
+                num_channels = spec.resolve_channels(opt)
                 assert num_channels > 0
-                opt.out_spec[output_name] = (num_channels,) + opt.outputsz
-                opt.loss_weight[output_name] = loss_w
-                class_keys.append(k)
+                opt.out_spec[spec.internal_name] = (num_channels,) + opt.outputsz
+                opt.loss_weight[spec.internal_name] = loss_w
+                class_keys.append(flag_name)
 
         # Mito-to-cell assignment hacks
         if opt.mito_to_cell > 0:
