@@ -42,7 +42,7 @@ class Model(nn.Module):
                 if (k == 'embedding') and (opt.vec_to == 'aff'):
                     edges = opt.edges
                     mask = AffinityMask(patch_sz, opt.overlap, edges, opt.bump)
-                elif k == 'affinity':
+                elif k.startswith('affinity'):
                     edges = opt.mask_edges
                     mask = AffinityMask(patch_sz, opt.overlap, edges, opt.bump)
                 else:

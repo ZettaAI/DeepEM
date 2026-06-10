@@ -21,11 +21,12 @@ def get_criteria(opt):
     ) if opt.class_balancing else None
 
     for k in opt.out_spec:
-        if k == 'affinity' or k == 'long_range':
-            if k == 'affinity':
-                edges = [(0,0,1),(0,1,0),(1,0,0)]
-            else:
+        if k.startswith('affinity') or k == 'long_range':
+            if k == 'long_range':
                 edges = list(opt.edges)
+            else:
+                # 'affinity', 'affinity_overseg', ... : nearest-neighbor edges
+                edges = [(0,0,1),(0,1,0),(1,0,0)]
             assert len(edges) > 0
             params = dict(opt.loss_params)
             params['size_average'] = False
@@ -44,7 +45,7 @@ def get_criteria(opt):
         else:
             params = dict(opt.loss_params)
 
-            if ('affinity' in opt.out_spec) or ('long_range' in opt.out_spec):
+            if any(key.startswith('affinity') for key in opt.out_spec) or ('long_range' in opt.out_spec):
                 # Auxiliary outputs use inverted weights
                 # If directional weights provided, skip class balancing for auxiliary
                 if isinstance(opt.class_weight0, list) or isinstance(opt.class_weight1, list):

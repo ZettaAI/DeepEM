@@ -102,7 +102,7 @@ class Forward(object):
                     output = outputs.get_data(k)
 
                     # Revert output.
-                    dst = (1, 1, 1) if k == 'affinity' else None
+                    dst = (1, 1, 1) if k.startswith('affinity') else None
                     reverted = fwd_utils.revert_flip(output, rule=rule, dst=dst)
                     v._data += reverted
 

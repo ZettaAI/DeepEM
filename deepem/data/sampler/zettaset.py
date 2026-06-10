@@ -70,7 +70,14 @@ class Sampler:
 
         dp.set_augment(aug)
         dp.set_imgs(["input"])
-        dp.set_segs(["affinity", "long_range", "embedding"])
+        # Any affinity* head ('affinity', 'affinity_overseg', ...) is a
+        # segmentation target; exclude the companion '*_mask' keys.
+        seg_keys = [
+            k for k in spec
+            if k.startswith("affinity") and not k.endswith("_mask")
+        ]
+        seg_keys += ["long_range", "embedding"]
+        dp.set_segs(seg_keys)
 
         if prob:
             weights = [prob[k] for k in data]

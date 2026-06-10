@@ -273,6 +273,8 @@ class Options(object):
             opt.scan_spec['embedding'] = (dim,) + opt.outputsz
         if opt.aff:
             opt.scan_spec['affinity'] = (3,) + opt.outputsz
+        if opt.aff_overseg:
+            opt.scan_spec['affinity_overseg'] = (3,) + opt.outputsz
         if opt.aff_deprecated:
             opt.scan_spec['affinity'] = (3,) + opt.outputsz
         if opt.bdr:

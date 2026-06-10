@@ -51,6 +51,7 @@ class ClassSpec:
 REGISTRY: dict[str, ClassSpec] = {
     # Affinity / boundary
     'aff':  ClassSpec(internal_name='affinity',   channels=3),
+    'aff_overseg': ClassSpec(internal_name='affinity_overseg', channels=3),
     'long': ClassSpec(internal_name='long_range', channels=lambda opt: len(opt.edges)),
     'bdr':  ClassSpec(internal_name='boundary'),
 
