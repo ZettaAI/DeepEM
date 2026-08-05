@@ -148,6 +148,18 @@ class Options(object):
         self.parser.add_argument('--embed_stop_grad', action='store_true',
                                  help='Detach the embedding before the task heads so it is shaped '
                                       'only by the metric loss (heads become pure decoders)')
+        # Output-decoding head (rsunet_decode_iso)
+        self.parser.add_argument('--decode_head', type=str, default='affinity',
+                                 help='Which out_spec key is decoded from the '
+                                      'concatenation of the other outputs')
+        self.parser.add_argument('--decode_kernel', type=vec3, default=None,
+                                 help='Kernel for the decoding conv (default: 5 5 5)')
+        self.parser.add_argument('--decode_stop_grad', action='store_true',
+                                 help='Detach the concatenated outputs before the decoder '
+                                      'so they are shaped only by their own losses')
+        self.parser.add_argument('--decode_width', type=int, default=0,
+                                 help='Hidden width of the decoder; 0 = single conv')
+
         self.parser.add_argument('--alpha', type=float, default=1.0)
         self.parser.add_argument('--beta', type=float, default=1.0)
         self.parser.add_argument('--gamma', type=float, default=0.001)
