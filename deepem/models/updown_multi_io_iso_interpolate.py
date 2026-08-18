@@ -1,3 +1,14 @@
+# DEPRECATED (isotropic z upsampling is broken).
+#
+# This model builds its core with emvision's rsunet_act_gn / rsunet_act_in,
+# whose BilinearUp derives its frozen kernel from the x/y axes only. With
+# zfactor > 1 the z taps are all equal: the up-path does not interpolate
+# along z (output slices come out in identical pairs) and its z gain is 2
+# instead of 1, inflating the up-path against the skip connection at every
+# level.
+#
+# Kept as-is so existing checkpoints keep reproducing. For new training use
+# deepem/models/v2/, which builds on deepem/models/core/rsunet.py.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

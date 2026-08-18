@@ -1,6 +1,22 @@
 # DeepEM
 Deep Learning for EM Connectomics
 
+## Isotropic models
+Use `deepem/models/v2/` for new isotropic training. Those models build their
+core from `deepem/models/core/rsunet.py`, which upsamples trilinearly on every
+axis. The older isotropic models (`deepem/models/*_iso*.py`) get their core
+from emvision, whose `BilinearUp` builds its kernel from the x/y axes only and
+therefore does not interpolate along z. They are kept unchanged so existing
+checkpoints keep reproducing.
+
+Existing isotropic checkpoints can be carried over with `--pretrain`: the v2
+state dict is the old one minus the `up.up.0.weight` buffers, so every learned
+weight transfers.
+
+ONNX export of these models needs `--opset_version 11` or higher (the default);
+ONNX `Resize` only gained `coordinate_transformation_mode` in opset 11, and
+exporting below that silently produces a graph that does not match PyTorch.
+
 ## Citation
 [Lee et al. 2017](https://arxiv.org/abs/1706.00120)
 ```

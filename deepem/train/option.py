@@ -187,6 +187,7 @@ class Options(object):
         self.parser.add_argument('--fov', type=vec3, default=(20,256,256))
         self.parser.add_argument('--depth', type=int, default=4)
         self.parser.add_argument('--width', type=int, default=None, nargs='+')
+        self.parser.add_argument('--norm', default='auto', choices=['auto', 'gn', 'in', 'ln', 'none'])
         self.parser.add_argument('--group', type=int, default=0)
         self.parser.add_argument('--group_eps', type=float, default=1e-5)
         self.parser.add_argument('--act', default='ReLU')
@@ -257,7 +258,7 @@ class Options(object):
 
         # Export to ONNX
         self.parser.add_argument('--export_onnx', action='store_true')
-        self.parser.add_argument('--opset_version', type=int, default=10)
+        self.parser.add_argument('--opset_version', type=int, default=11)
 
         self.parser.add_argument('--parallel', type=str, choices=["DDP", "DP", ], default=None)
 

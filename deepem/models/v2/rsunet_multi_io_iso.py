@@ -1,32 +1,32 @@
-# DEPRECATED (isotropic z upsampling is broken).
-#
-# This model builds its core with emvision's rsunet_act_gn / rsunet_act_in,
-# whose BilinearUp derives its frozen kernel from the x/y axes only. With
-# zfactor > 1 the z taps are all equal: the up-path does not interpolate
-# along z (output slices come out in identical pairs) and its z gain is 2
-# instead of 1, inflating the up-path against the skip connection at every
-# level.
-#
-# Kept as-is so existing checkpoints keep reproducing. For new training use
-# deepem/models/v2/, which builds on deepem/models/core/rsunet.py.
+"""Isotropic multi-input/output RSUNet built on DeepEM's own core.
+
+Same architecture as ``deepem/models/rsunet_multi_io_iso.py``, but the core
+comes from :mod:`deepem.models.core.rsunet` instead of emvision, so the
+up-path actually interpolates along z. See that module for the details.
+"""
+
 import torch
 import torch.nn as nn
 
-from emvision.models import rsunet_act_in, rsunet_act_gn
-
+from deepem.models.core.rsunet import RSUNet, check_onnx_opset
 from deepem.models.layers import Conv, Crop, Scale
 
 
 def create_model(opt):
+    check_onnx_opset(opt)
+
     width = opt.width if opt.width else [16, 32, 64, 128, 256, 512]
     depth = len(width) if opt.width else opt.depth
     zfactor = [2] * (depth - 1)
-    if opt.group > 0:
-        # Group normalization
-        core = rsunet_act_gn(width=width[:depth], zfactor=zfactor, group=opt.group, eps=opt.group_eps, act=opt.act)
-    else:
-        # Instance normalization
-        core = rsunet_act_in(width=width[:depth], zfactor=zfactor, act=opt.act)
+
+    core = RSUNet(
+        width=width[:depth],
+        zfactor=zfactor,
+        norm=getattr(opt, 'norm', 'auto'),
+        group=opt.group,
+        eps=opt.group_eps,
+        act=opt.act,
+    )
     return Model(core, opt.in_spec, opt.out_spec, width[0], crop=opt.crop,
                 onnx=opt.onnx, scale_init=opt.scale_init)
 
@@ -87,4 +87,4 @@ class Model(nn.Sequential):
         self.add_module('out',
             OutputBlock(out_channels, out_spec, io_kernel, onnx=onnx, scale_init=scale_init))
         if crop is not None:
-            self.add_module('crop', Crop(crop)) 
+            self.add_module('crop', Crop(crop))
