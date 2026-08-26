@@ -227,7 +227,9 @@ def load_sample(
         fill_missing=True,
         bounded=False,
     )[image_bbox.to_slices()]
-    dset["input"] = convert_array(vol) / 255.0
+    # float32, not the float64 that uint8 / 255.0 would promote to: at 8 nm a
+    # padded hemibrain sample is ~314 M voxels, so the dtype is worth 1.3 GB.
+    dset["input"] = convert_array(vol).astype(np.float32) / np.float32(255.0)
     print(f"\tinput: {dset['input'].shape}")
 
     # Assumes that zettaset's annotation names follow DeepEM's convention.
