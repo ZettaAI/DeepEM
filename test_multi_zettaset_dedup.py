@@ -188,6 +188,93 @@ def test_no_padding_still_shares():
     assert np.array_equal(dset["embedding"], seg)
 
 
+def _build_and_count(dset, names):
+    """Run the sampler's build_dataset, counting np.flatnonzero calls."""
+    from unittest.mock import patch as mpatch
+    import dataprovider3
+    from deepem.data.sampler.zettaset import Sampler
+
+    spec = {"input": (1,) + PADDED}
+    for name in names:
+        spec[name] = (1,) + PADDED
+        spec[name + "_mask"] = (1,) + PADDED
+
+    calls = []
+    real = np.flatnonzero
+
+    def counting(a):
+        calls.append(a)
+        return real(a)
+
+    with mpatch.object(dataprovider3.dataset.np, "flatnonzero", counting):
+        ds = Sampler.build_dataset(None, "t", dset, spec)
+    return ds, calls, real
+
+
+def test_locs_computed_once_when_masks_are_equivalent():
+    """4 mask keys, 2 distinct objects, but identical content -> one pass."""
+    seg = _seg()
+    sample = FakeSample({"seg": seg, "mit": (seg % 3 == 0).astype("uint32")})
+    names = ("embedding", "affinity", "long_range", "mitochondria")
+    dset = _load(
+        sample,
+        {"embedding": "seg | ?", "affinity": "seg | ?",
+         "long_range": "seg | ?", "mitochondria": "mit | ?"},
+        requires_binarize=["mitochondria"],
+    )
+    # precondition: 2 distinct objects, equal content (both all-ones, padded)
+    assert dset["embedding_mask"] is not dset["mitochondria_mask"]
+    assert np.array_equal(dset["embedding_mask"], dset["mitochondria_mask"])
+
+    ds, calls, real = _build_and_count(dset, names)
+    assert len(calls) == 1, f"flatnonzero called {len(calls)}x, expected 1"
+    assert np.array_equal(ds.locs["data"], real(dset["embedding_mask"]))
+    for name in names:
+        assert name + "_mask" in ds.data
+
+
+def test_locs_still_unions_genuinely_different_masks():
+    """A mask with different content must still contribute its locations."""
+    seg = _seg()
+    seg_mask = np.ones(SHAPE, dtype="uint8"); seg_mask[0] = 0     # drops z=0
+    mit_mask = np.ones(SHAPE, dtype="uint8"); mit_mask[-1] = 0    # drops z=-1
+    sample = FakeSample(
+        {"seg": seg, "mit": (seg % 3 == 0).astype("uint32")},
+        masks={"seg": seg_mask, "mit": mit_mask},
+    )
+    names = ("embedding", "affinity", "mitochondria")
+    dset = _load(
+        sample,
+        {"embedding": "seg | ?", "affinity": "seg | ?", "mitochondria": "mit | ?"},
+        requires_binarize=["mitochondria"],
+    )
+    assert not np.array_equal(dset["embedding_mask"], dset["mitochondria_mask"])
+
+    ds, calls, real = _build_and_count(dset, names)
+    assert len(calls) == 2, f"flatnonzero called {len(calls)}x, expected 2"
+    expected = np.union1d(real(dset["embedding_mask"]), real(dset["mitochondria_mask"]))
+    assert np.array_equal(ds.locs["data"], expected)
+
+
+def test_locs_equal_count_but_different_content_is_not_merged():
+    """count_nonzero is only a discriminator -- array_equal must decide."""
+    seg = _seg()
+    seg_mask = np.ones(SHAPE, dtype="uint8"); seg_mask[0] = 0
+    mit_mask = np.ones(SHAPE, dtype="uint8"); mit_mask[1] = 0     # same nnz, different set
+    sample = FakeSample(
+        {"seg": seg, "mit": seg.copy()},
+        masks={"seg": seg_mask, "mit": mit_mask},
+    )
+    dset = _load(sample, {"embedding": "seg | ?", "mitochondria": "mit | ?"},
+                 requires_binarize=["mitochondria"])
+    a, b = dset["embedding_mask"], dset["mitochondria_mask"]
+    assert np.count_nonzero(a) == np.count_nonzero(b) and not np.array_equal(a, b)
+
+    ds, calls, real = _build_and_count(dset, ("embedding", "mitochondria"))
+    assert len(calls) == 2, f"flatnonzero called {len(calls)}x, expected 2"
+    assert np.array_equal(ds.locs["data"], np.union1d(real(a), real(b)))
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in fns:
