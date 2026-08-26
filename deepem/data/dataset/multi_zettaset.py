@@ -245,6 +245,71 @@ def load_sample(
         mask_vol = sample.read_mask(key)[key]
         shared_mask = convert_array(mask_vol).astype("uint8")
 
+    # Several lookup names routinely resolve to the same source annotation --
+    # embedding / affinity / long_range all read "seg" -- and each one used to
+    # read, transform and pad its own full-size copy. Materialize each distinct
+    # (source, transform) once per sample and share it by reference across the
+    # names that resolve to it. Safe by construction: DataProvider3's TensorData
+    # is read-only and get_patch() returns np.copy(), so nothing downstream can
+    # mutate these volumes. Under forked DataLoader workers it also means fewer
+    # copy-on-write pages.
+    raw_cache: dict[str, np.ndarray] = {}
+    data_cache: dict[tuple, np.ndarray] = {}
+    mask_cache: dict[tuple, np.ndarray] = {}
+    cache_owner: dict[tuple, str] = {}
+
+    def read_annotation(key: str) -> np.ndarray:
+        """Read one annotation volume, at most once per sample."""
+        if key not in raw_cache:
+            raw_cache[key] = convert_array(sample.read(key)[key])
+        return raw_cache[key]
+
+    def build_data(target_keys: list[str], transform: tuple) -> np.ndarray:
+        combined = None
+        for key in target_keys:
+            data_array = read_annotation(key)
+
+            # Semantic mapping or binarize (before combining)
+            if transform[0] == "sem":
+                data_array = (data_array == transform[1]).astype("uint8")
+            elif transform[0] == "bin":
+                data_array = (data_array > 0).astype("uint8")
+
+            # Combine (logical OR for binary targets)
+            combined = (
+                data_array if combined is None
+                else np.maximum(combined, data_array)
+            )
+        return combined
+
+    def build_mask(target_keys: list[str]) -> np.ndarray:
+        combined = None
+        for key in target_keys:
+            if (not no_mask) and (key in sample.masks):
+                # Always prioritize loading own mask if it exists
+                mask_vol = sample.read_mask(key)[key]
+                mask_array = convert_array(mask_vol).astype("uint8")
+            elif shared_mask is not None:
+                # Fall back to shared mask if no specific mask exists
+                mask_array = shared_mask
+            else:
+                # Only the shape was ever taken from the annotation, and every
+                # transform is elementwise -- so the mask does not depend on
+                # which lookup name we are serving.
+                mask_array = np.ones(read_annotation(key).shape, dtype="uint8")
+
+            # Combine masks (logical OR)
+            combined = (
+                mask_array if combined is None
+                else np.maximum(combined, mask_array)
+            )
+        return combined
+
+    def pad(array: np.ndarray) -> np.ndarray:
+        if padding == (0, 0, 0):
+            return array
+        return np.pad(array, tuple((p, p) for p in padding), "constant")
+
     # Process annotations
     for name, key_spec in zettaset_lookup.items():
 
@@ -270,12 +335,17 @@ def load_sample(
             # Shape derived from bbox (ZYX order, matching convert_array output).
             bbox_size = bbox.maxpt - bbox.minpt
             shape = tuple(int(s) for s in reversed(bbox_size))
-            combined_data = np.zeros(shape, dtype="float32")
             target_keys = []
             # Check if annotation is known to be absent (negative example).
             is_negative = any(key in known_absent for key in fallback_options)
+            data_cache_key = ("__zerofill__",)
+            mask_cache_key = ("__zerofill__", is_negative)
+            if data_cache_key not in data_cache:
+                data_cache[data_cache_key] = pad(np.zeros(shape, dtype="float32"))
+            if mask_cache_key not in mask_cache:
+                fill = np.ones if is_negative else np.zeros
+                mask_cache[mask_cache_key] = pad(fill(shape, dtype="uint8"))
             if is_negative:
-                combined_mask = np.ones(shape, dtype="uint8")
                 print(
                     f"\t'{name}' - none of the fallback options "
                     f"{fallback_options} found in annotations "
@@ -283,7 +353,6 @@ def load_sample(
                     f"Known absent: using all-ones mask (negative example)."
                 )
             else:
-                combined_mask = np.zeros(shape, dtype="uint8")
                 print(
                     f"\tWARNING: '{name}' - none of the fallback options "
                     f"{fallback_options} found in annotations "
@@ -301,61 +370,41 @@ def load_sample(
         else:
             # Parse target combination (e.g., "mye + ecs" -> ["mye", "ecs"])
             target_keys = parse_target_combination(selected_key_spec)
-            combined_data = None
-            combined_mask = None
 
-        for key in target_keys:
-            # Annotation
-            vol = sample.read(key)[key]
-            data_array = convert_array(vol)
-
-            # Semantic mapping or binarize (before combining)
+            # The transform is the only per-name variation in the data branch.
             if name in semantic_mapping:
-                data_array = (data_array == semantic_mapping[name]).astype("uint8")
+                transform = ("sem", semantic_mapping[name])
             elif name in requires_binarize:
-                data_array = (data_array > 0).astype("uint8")
-
-            # Combine (logical OR for binary targets)
-            if combined_data is None:
-                combined_data = data_array
+                transform = ("bin",)
             else:
-                combined_data = np.maximum(combined_data, data_array)
+                transform = ("raw",)
 
-            # Mask
-            mask_key = f"{name}_mask"
-            if (not no_mask) and (key in sample.masks):
-                # Always prioritize loading own mask if it exists
-                mask_vol = sample.read_mask(key)[key]
-                mask_array = convert_array(mask_vol).astype("uint8")
-            elif shared_mask is not None:
-                # Fall back to shared mask if no specific mask exists
-                mask_array = shared_mask
-            else:
-                mask_array = np.ones_like(data_array, dtype="uint8")
-
-            # Combine masks (logical OR)
-            if combined_mask is None:
-                combined_mask = mask_array
-            else:
-                combined_mask = np.maximum(combined_mask, mask_array)
-
-        dset[name] = combined_data
-        anno_log = f"\t{name}: {dset[name].shape} (combined from {target_keys})"
+            # Key on the resolved targets, not the raw spec string: fallback can
+            # pick a different option for each name, and "mye + ecs" has to
+            # normalize to the same tuple. The mask needs no transform component
+            # -- it is a pure function of the source keys.
+            data_cache_key = (tuple(target_keys), transform)
+            mask_cache_key = (tuple(target_keys),)
+            # Consulted independently: a name can hit the mask cache and miss
+            # the data cache (same source, different transform).
+            if data_cache_key not in data_cache:
+                data_cache[data_cache_key] = pad(build_data(target_keys, transform))
+            if mask_cache_key not in mask_cache:
+                mask_cache[mask_cache_key] = pad(build_mask(target_keys))
 
         mask_key = f"{name}_mask"
-        dset[mask_key] = combined_mask
-        msk_log = f"\t{mask_key}: {dset[mask_key].shape}"
+        dset[name] = data_cache[data_cache_key]
+        dset[mask_key] = mask_cache[mask_cache_key]
 
-        # Padding
-        if padding != (0, 0, 0):
-            pad_width = tuple((p, p) for p in padding)
-            dset[name] = np.pad(dset[name], pad_width, "constant")
-            anno_log += f" -> {dset[name].shape}"
-            dset[mask_key] = np.pad(dset[mask_key], pad_width, "constant")
-            msk_log += f" -> {dset[mask_key].shape}"
-
+        owner = cache_owner.setdefault(data_cache_key, name)
+        anno_log = f"\t{name}: {dset[name].shape} (combined from {target_keys})"
+        if owner != name:
+            anno_log += f" -> sharing array with '{owner}'"
         print(anno_log)
-        print(msk_log)
+        print(f"\t{mask_key}: {dset[mask_key].shape}")
+
+    # The unpadded reads are only needed while the caches above are filled.
+    raw_cache.clear()
 
     return dset
 
