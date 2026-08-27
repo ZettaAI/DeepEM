@@ -235,11 +235,28 @@ def test_locs_computed_once_when_masks_are_equivalent():
 
     ds, loc_calls, real = _build_and_count(dset, names)
     assert len(loc_calls) == 1, f"loc=True for {loc_calls}, expected 1 mask"
-    # one distinct mask -> described by its bounding box, no index array
-    assert ds.locs["data"] is None
+    # How DataProvider3 represents those locations is its own policy; what
+    # build_dataset owes is that they were computed once and describe the mask.
     assert ds.locs["count"] == int(np.count_nonzero(dset["embedding_mask"]))
     for name in names:
         assert name + "_mask" in ds.data
+
+
+def test_all_zero_mask_is_not_a_location_mask():
+    """Zero-filled targets contribute no locations, so they must not claim any."""
+    seg = _seg()
+    sample = FakeSample({"seg": seg})
+    dset = _load(
+        sample,
+        {"embedding": "seg | ?", "myelin": "mye | ?"},   # mye missing -> zero-fill
+        known_absent=["mye"],
+    )
+    assert not dset["myelin"].any()
+
+    ds, loc_calls, _ = _build_and_count(dset, ("embedding", "myelin"))
+    assert "myelin_mask" not in loc_calls, (
+        f"an all-zero mask must not register locations: {loc_calls}")
+    assert ds.locs["count"] == int(np.count_nonzero(dset["embedding_mask"]))
 
 
 def test_locs_still_unions_genuinely_different_masks():

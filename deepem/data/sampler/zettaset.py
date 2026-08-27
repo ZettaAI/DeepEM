@@ -149,7 +149,12 @@ class Sampler:
                 nnz = locs_nnz(mask)
                 if nnz is not None:
                     loc_masks.append((mask, nnz))
-                dset.add_mask(key=key, data=mask, loc=nnz is not None)
+                # An all-zero mask contributes no locations. Registering it as
+                # one makes the dataset look sampleable and defers the failure
+                # to a confusing out-of-range error at sample time -- this is
+                # the zero-fill path in multi_zettaset, so it is reachable.
+                dset.add_mask(key=key, data=mask,
+                              loc=nnz is not None and nnz > 0)
             else:
                 dset.add_data(key=key, data=data[key])
 
