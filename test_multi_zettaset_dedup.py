@@ -189,9 +189,15 @@ def test_no_padding_still_shares():
 
 
 def _build_and_count(dset, names):
-    """Run the sampler's build_dataset, counting np.flatnonzero calls."""
+    """Run the sampler's build_dataset, recording which masks got loc=True.
+
+    `loc=True` is what makes DataProvider3 describe a mask's sampleable region
+    (bounding box, or an index array when sparse). Counting those calls tests
+    build_dataset's dedup directly, independent of which representation
+    DataProvider3 happens to choose.
+    """
     from unittest.mock import patch as mpatch
-    import dataprovider3
+    from dataprovider3 import Dataset as DPDataset
     from deepem.data.sampler.zettaset import Sampler
 
     spec = {"input": (1,) + PADDED}
@@ -199,16 +205,17 @@ def _build_and_count(dset, names):
         spec[name] = (1,) + PADDED
         spec[name + "_mask"] = (1,) + PADDED
 
-    calls = []
-    real = np.flatnonzero
+    loc_calls = []
+    real_add_mask = DPDataset.add_mask
 
-    def counting(a):
-        calls.append(a)
-        return real(a)
+    def recording(self, key, data, offset=(0, 0, 0), loc=False):
+        if loc:
+            loc_calls.append(key)
+        return real_add_mask(self, key, data, offset=offset, loc=loc)
 
-    with mpatch.object(dataprovider3.dataset.np, "flatnonzero", counting):
+    with mpatch.object(DPDataset, "add_mask", recording):
         ds = Sampler.build_dataset(None, "t", dset, spec)
-    return ds, calls, real
+    return ds, loc_calls, np.flatnonzero
 
 
 def test_locs_computed_once_when_masks_are_equivalent():
@@ -226,9 +233,11 @@ def test_locs_computed_once_when_masks_are_equivalent():
     assert dset["embedding_mask"] is not dset["mitochondria_mask"]
     assert np.array_equal(dset["embedding_mask"], dset["mitochondria_mask"])
 
-    ds, calls, real = _build_and_count(dset, names)
-    assert len(calls) == 1, f"flatnonzero called {len(calls)}x, expected 1"
-    assert np.array_equal(ds.locs["data"], real(dset["embedding_mask"]))
+    ds, loc_calls, real = _build_and_count(dset, names)
+    assert len(loc_calls) == 1, f"loc=True for {loc_calls}, expected 1 mask"
+    # one distinct mask -> described by its bounding box, no index array
+    assert ds.locs["data"] is None
+    assert ds.locs["count"] == int(np.count_nonzero(dset["embedding_mask"]))
     for name in names:
         assert name + "_mask" in ds.data
 
@@ -250,10 +259,12 @@ def test_locs_still_unions_genuinely_different_masks():
     )
     assert not np.array_equal(dset["embedding_mask"], dset["mitochondria_mask"])
 
-    ds, calls, real = _build_and_count(dset, names)
-    assert len(calls) == 2, f"flatnonzero called {len(calls)}x, expected 2"
+    ds, loc_calls, real = _build_and_count(dset, names)
+    assert len(loc_calls) == 2, f"loc=True for {loc_calls}, expected 2 masks"
+    # a second distinct mask forces the exact index-array union
     expected = np.union1d(real(dset["embedding_mask"]), real(dset["mitochondria_mask"]))
     assert np.array_equal(ds.locs["data"], expected)
+    assert ds.locs["count"] == expected.size
 
 
 def test_locs_equal_count_but_different_content_is_not_merged():
@@ -270,8 +281,8 @@ def test_locs_equal_count_but_different_content_is_not_merged():
     a, b = dset["embedding_mask"], dset["mitochondria_mask"]
     assert np.count_nonzero(a) == np.count_nonzero(b) and not np.array_equal(a, b)
 
-    ds, calls, real = _build_and_count(dset, ("embedding", "mitochondria"))
-    assert len(calls) == 2, f"flatnonzero called {len(calls)}x, expected 2"
+    ds, loc_calls, real = _build_and_count(dset, ("embedding", "mitochondria"))
+    assert len(loc_calls) == 2, f"loc=True for {loc_calls}, expected 2 masks"
     assert np.array_equal(ds.locs["data"], np.union1d(real(a), real(b)))
 
 
