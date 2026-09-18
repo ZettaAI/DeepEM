@@ -167,4 +167,9 @@ class WandbLogger:
         tensor = tensor[0:3, ...] if tensor.ndim > 3 else tensor
         depth = tensor.shape[-3]
         imgs = [tensor[:,z,:,:] for z in range(depth)]
-        return make_grid(imgs, nrow=depth, padding=0)
+        grid = make_grid(imgs, nrow=depth, padding=0)
+        # Everything logged here is in [0, 1] (input / 255, sigmoid(preds),
+        # 0/1 masks, seg2rgb, vec2pca, vec2aff). Hand wandb.Image an explicit
+        # uint8 0-255 image: wandb 0.30 stopped rescaling [0, 1] floats and
+        # just casts them to uint8, which turned every logged image black.
+        return (grid.clamp(0, 1) * 255).round().to(torch.uint8)
