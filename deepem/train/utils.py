@@ -6,7 +6,7 @@ from torch.nn.parallel import data_parallel
 
 import deepem.loss as loss
 from deepem.train.data import Data
-from deepem.train.model import Model, AmpModel
+from deepem.train.model import Model
 from deepem.loss.utils import BinaryWeightBalancer
 from deepem.utils.py_utils import load_module
 
@@ -71,8 +71,7 @@ def load_model(opt):
     """Creates and loads a model based on options."""
     # Create base model
     mod = load_module("model", opt.model)
-    model_class = AmpModel if opt.mixed_precision else Model
-    model = model_class(mod.create_model(opt), get_criteria(opt), opt)
+    model = Model(mod.create_model(opt), get_criteria(opt), opt)
 
     # Load pretrained weights if specified
     if opt.pretrain:
@@ -87,19 +86,26 @@ def load_model(opt):
                 opt.chkpt_num = chkpt_num
                 opt.loaded_from_frontier = is_frontier
 
-    return model.train().cuda()
+    model = model.train().cuda()
+    if getattr(opt, 'channels_last', False):
+        model = model.to(memory_format=torch.channels_last_3d)
+    return model
 
 
-def load_optimizer(opt, trainable):
+def load_optimizer(opt, trainable, precision=None):
     # Create an optimizer.
-    optimizer = getattr(torch.optim, opt.optim)(trainable, **opt.optim_params)
+    params = dict(opt.optim_params)
+    if getattr(opt, 'fused_optim', False):
+        assert opt.optim in ('Adam', 'AdamW'), f"--fused_optim is not supported for {opt.optim}"
+        params['fused'] = True
+    optimizer = getattr(torch.optim, opt.optim)(trainable, **params)
 
     if not opt.pretrain and opt.chkpt_num > 0:
         # Load optimizer state from the checkpoint we actually used
-        if hasattr(opt, 'loaded_from_frontier') and opt.loaded_from_frontier:
-            load_optimizer_state(optimizer, opt.model_dir, opt.chkpt_num, is_frontier=True)
-        else:
-            load_optimizer_state(optimizer, opt.model_dir, opt.chkpt_num, is_frontier=False)
+        is_frontier = bool(getattr(opt, 'loaded_from_frontier', False))
+        chkpt = load_optimizer_state(optimizer, opt.model_dir, opt.chkpt_num, is_frontier=is_frontier)
+        if precision is not None and chkpt is not None:
+            precision.load_state_dict(chkpt.get('amp'))
 
     print(optimizer)
     return optimizer
@@ -156,23 +162,26 @@ def latest_chkpt(fpath):
     return latest_regular, False
 
 
-def save_chkpt(model, fpath, chkpt_num, optimizer):
-    print(f"SAVE CHECKPOINT: {chkpt_num} iters.")
-    fname = os.path.join(fpath, f"model{chkpt_num}.chkpt")
+def _chkpt_state(model, chkpt_num, optimizer, precision=None):
     state = {'iter': chkpt_num,
              'state_dict': model.state_dict(),
              'optimizer': optimizer.state_dict()}
-    torch.save(state, fname)
+    if precision is not None and precision.scaler is not None:
+        state['amp'] = precision.state_dict()
+    return state
 
 
-def save_frontier_chkpt(model, fpath, chkpt_num, optimizer):
+def save_chkpt(model, fpath, chkpt_num, optimizer, precision=None):
+    print(f"SAVE CHECKPOINT: {chkpt_num} iters.")
+    fname = os.path.join(fpath, f"model{chkpt_num}.chkpt")
+    torch.save(_chkpt_state(model, chkpt_num, optimizer, precision), fname)
+
+
+def save_frontier_chkpt(model, fpath, chkpt_num, optimizer, precision=None):
     """Save a frontier checkpoint that overwrites the previous frontier checkpoint."""
     print(f"SAVE FRONTIER CHECKPOINT: {chkpt_num} iters.")
     fname = os.path.join(fpath, "model_frontier.chkpt")
-    state = {'iter': chkpt_num,
-             'state_dict': model.state_dict(),
-             'optimizer': optimizer.state_dict()}
-    torch.save(state, fname)
+    torch.save(_chkpt_state(model, chkpt_num, optimizer, precision), fname)
 
 
 def load_frontier_chkpt(model, fpath):
@@ -189,11 +198,13 @@ def load_frontier_chkpt(model, fpath):
 
 
 def load_optimizer_state(optimizer, fpath, chkpt_num, is_frontier=False):
-    """Load optimizer state from checkpoint."""
+    """Load optimizer state from checkpoint. Returns the checkpoint dict, or
+    None when there is none, so the caller can restore other training state
+    (the fp16 loss scale) from the same file."""
     if is_frontier:
         fname = os.path.join(fpath, "model_frontier.chkpt")
         if not os.path.exists(fname):
-            return
+            return None
         chkpt = torch.load(fname)
         iter_num = chkpt.get('iter', 0)
         print(f"LOAD FRONTIER OPTIM STATE: {iter_num} iters.")
@@ -208,6 +219,7 @@ def load_optimizer_state(optimizer, fpath, chkpt_num, is_frontier=False):
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
                     state[k] = v.cuda()
+    return chkpt
 
 
 def load_data(opt, local_rank):

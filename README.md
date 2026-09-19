@@ -17,6 +17,20 @@ ONNX export of these models needs `--opset_version 11` or higher (the default);
 ONNX `Resize` only gained `coordinate_transformation_mode` in opset 11, and
 exporting below that silently produces a graph that does not match PyTorch.
 
+## Mixed precision
+`--mixed_precision bf16` (or `fp16`) is handled by `deepem/train/amp.py`.
+Weights and optimizer state stay fp32. Only the network forward runs under
+autocast: the predictions are cast back to fp32 before the loss, and backward
+runs outside autocast. bf16 needs no loss scaling. fp16 uses a GradScaler,
+and its state is saved in checkpoints under `amp`. Before this module, the
+`AmpModel` wrapper opened its own fp16 autocast, so `bf16` actually trained in
+fp16 with no loss scaling.
+
+Two optional flags only affect speed: `--channels_last` (NDHWC layout) and
+`--fused_optim` (fused Adam/AdamW). Run `scripts/amp_bench.py --spec <training
+spec>` on the target GPU to check parity against fp32 and to measure s/iter
+and peak memory for each width, precision and batch size.
+
 ## Citation
 [Lee et al. 2017](https://arxiv.org/abs/1706.00120)
 ```

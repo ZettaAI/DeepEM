@@ -176,9 +176,8 @@ class Forward(object):
 
                 # Forward pass
                 if self.mixed_precision:
-                    dtype = torch.bfloat16 if self.mixed_precision == 'bf16' else torch.float16
-                    with torch.cuda.amp.autocast(dtype=dtype):
-                        outputs = model(inputs)
+                    # AmpModel applies autocast at the requested dtype.
+                    outputs = model(inputs)
                     outputs = {k: v.float() for k, v in outputs.items()}
                 else:
                     outputs = model(inputs)

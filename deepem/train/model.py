@@ -5,10 +5,17 @@ import torch
 import torch.nn as nn
 from cloudfiles import CloudFiles, paths, exceptions
 
+from deepem.train.amp import Precision
+
 
 class Model(nn.Module):
     """
     Model wrapper for training.
+
+    The network forward runs under the precision's autocast; the predictions
+    are cast to fp32 before the loss, so the loss is always computed in fp32.
+    Autocast lives here rather than in the training loop so that it also
+    covers DataParallel replicas, which run forward in their own threads.
     """
 
     def __init__(self, model, criteria, opt):
@@ -18,15 +25,23 @@ class Model(nn.Module):
         self.in_spec = dict(opt.in_spec)
         self.out_spec = dict(opt.out_spec)
         self.pretrain = opt.pretrain is not None
+        self.precision = Precision.from_opt(opt)
+        self.channels_last = getattr(opt, 'channels_last', False)
 
     def forward(self, sample):
         # Forward pass
         input_dict = {k: sample[k] for k in sorted(self.in_spec)}
-        if len(input_dict) == 1:
-            [input_tensor] = input_dict.values()
-            preds = self.model(input_tensor)
-        else:
-            preds = self.model(input_dict)
+        if self.channels_last:
+            input_dict = {k: v.contiguous(memory_format=torch.channels_last_3d)
+                          for k, v in input_dict.items()}
+        device_type = next(iter(input_dict.values())).device.type
+        with self.precision.autocast(device_type):
+            if len(input_dict) == 1:
+                [input_tensor] = input_dict.values()
+                preds = self.model(input_tensor)
+            else:
+                preds = self.model(input_dict)
+        preds = {k: v.float() for k, v in preds.items()}
 
         # Loss evaluation
         try:
@@ -80,13 +95,9 @@ class Model(nn.Module):
             self.model.load_state_dict(state_dict)
 
 
-class AmpModel(Model):
-    def __init__(self, *args):
-        super(AmpModel, self).__init__(*args)
-
-    def forward(self, sample):
-        with torch.cuda.amp.autocast():
-            return super().forward(sample)
+# Kept for imports. Precision now comes from opt.mixed_precision inside Model;
+# this class used to force fp16 regardless of the requested dtype.
+AmpModel = Model
 
 
 def load_chkpt(fpath):

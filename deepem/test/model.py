@@ -7,6 +7,7 @@ from torch.nn import functional as F
 from deepem.loss.mean import vec2aff
 from deepem.utils import torch_utils
 from deepem.test.mask import PatchMask, AffinityMask
+from deepem.train.amp import Precision
 
 
 class Model(nn.Module):
@@ -106,11 +107,15 @@ class Model(nn.Module):
 
 
 class AmpModel(Model):
-    def __init__(self, *args):
-        super(AmpModel, self).__init__(*args)
+    """Inference under autocast at the dtype --mixed_precision asks for. A bare
+    ``torch.cuda.amp.autocast()`` here used to force fp16 even for bf16."""
+    def __init__(self, model, opt):
+        super(AmpModel, self).__init__(model, opt)
+        self.precision = Precision.from_opt(opt)
 
     def forward(self, sample):
-        with torch.cuda.amp.autocast():
+        device_type = 'cpu' if self.device == 'cpu' else 'cuda'
+        with self.precision.autocast(device_type):
             return super().forward(sample)
 
 

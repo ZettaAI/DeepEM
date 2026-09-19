@@ -255,6 +255,10 @@ class Options(object):
 
         # Mixed-precision training
         self.parser.add_argument('--mixed_precision', type=str, default=None, choices=['fp16', 'bf16'])
+        self.parser.add_argument('--channels_last', action='store_true',
+                                 help='Model and inputs in channels_last_3d (NDHWC) memory format')
+        self.parser.add_argument('--fused_optim', action='store_true',
+                                 help='Fused CUDA implementation of Adam/AdamW')
 
         # Export to ONNX
         self.parser.add_argument('--export_onnx', action='store_true')

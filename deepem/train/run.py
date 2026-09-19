@@ -64,9 +64,14 @@ def train(opt):
         local_rank = None
         model = load_model(opt)
 
+    # Precision: the one object the model wrapper, the loop and the
+    # checkpoints share (see deepem/train/amp.py).
+    precision = (model.module if opt.parallel == "DDP" else model).precision
+    print(precision.describe())
+
     # Optimizer
     trainable = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = load_optimizer(opt, trainable)
+    optimizer = load_optimizer(opt, trainable, precision)
 
     # Data loaders
     train_loader, val_loader = load_data(opt, local_rank)
@@ -75,15 +80,10 @@ def train(opt):
     if opt.parallel == "DDP":
         if dist.get_rank() == 0:
             model = revert_sync_batchnorm(model)
-            save_chkpt(model.module, opt.model_dir, opt.chkpt_num, optimizer)
+            save_chkpt(model.module, opt.model_dir, opt.chkpt_num, optimizer, precision)
             model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     else:
-        save_chkpt(model, opt.model_dir, opt.chkpt_num, optimizer)
-
-    # Mixed-precision training
-    scaler = None
-    if opt.mixed_precision == 'fp16':
-        scaler = torch.cuda.amp.GradScaler()
+        save_chkpt(model, opt.model_dir, opt.chkpt_num, optimizer, precision)
 
     # Training loop
     print("========== BEGIN TRAINING LOOP ==========")
@@ -104,36 +104,15 @@ def train(opt):
             for param in model.parameters():
                 param.grad = None
 
-            # Optimizer step
-            if opt.mixed_precision:
-                dtype = torch.bfloat16 if opt.mixed_precision == 'bf16' else torch.float16
-                with torch.cuda.amp.autocast(dtype=dtype):
-                    losses, nmasks, preds = forward(model, sample, opt)
-                    total_loss = sum([w*losses[k] for k, w in opt.loss_weight.items()])
-                    touch = _sum_tensors(preds)
-                    if touch is not None:
-                        total_loss = total_loss + touch * 0.0
-
-                if opt.mixed_precision == 'fp16':
-                    # Backward passes under autocast are not recommended.
-                    scaler.scale(total_loss).backward()
-                    scaler.step(optimizer)
-                    scaler.update()
-                else:  # bf16
-                    total_loss.backward()
-                    optimizer.step()
-
-                losses = {k: v.float() for k, v in losses.items()}
-                nmasks = {k: v.float() for k, v in nmasks.items()}
-                preds  = {k: v.float() for k, v in preds.items()}
-            else:
-                losses, nmasks, preds = forward(model, sample, opt)
-                total_loss = sum([w*losses[k] for k, w in opt.loss_weight.items()])
-                touch = _sum_tensors(preds)
-                if touch is not None:
-                    total_loss = total_loss + touch * 0.0
-                total_loss.backward()
-                optimizer.step()
+            # Optimizer step. The model wrapper runs the network under
+            # autocast and returns fp32 predictions and losses; backward and
+            # the step run outside autocast, with loss scaling in fp16.
+            losses, nmasks, preds = forward(model, sample, opt)
+            total_loss = sum([w*losses[k] for k, w in opt.loss_weight.items()])
+            touch = _sum_tensors(preds)
+            if touch is not None:
+                total_loss = total_loss + touch * 0.0
+            precision.backward_step(total_loss, optimizer)
 
             # Elapsed time
             end.record()
@@ -148,12 +127,17 @@ def train(opt):
                 elapsed_max = elapsed
 
             # Record keeping
-            logger.record('train', losses, nmasks, elapsed=elapsed, elapsed_max=elapsed_max)
+            extra = dict(elapsed=elapsed, elapsed_max=elapsed_max,
+                         max_mem_gib=torch.cuda.max_memory_allocated() / 2**30)
+            if precision.loss_scale is not None:
+                extra['amp_scale'] = precision.loss_scale
+            logger.record('train', losses, nmasks, **extra)
 
             # Log & display averaged stats.
             if (i+1) % opt.avgs_intv == 0 or i < opt.warm_up:
                 stats = logger.check('train', i+1)
                 wandb_logger.log_metrics('train', i+1, stats)
+                torch.cuda.reset_peak_memory_stats()
 
             # Image logging
             if (i+1) % opt.imgs_intv == 0:
@@ -174,22 +158,22 @@ def train(opt):
                 if opt.parallel == "DDP":
                     if dist.get_rank() == 0:
                         model = revert_sync_batchnorm(model)
-                        save_frontier_chkpt(model.module, opt.model_dir, i+1, optimizer)
+                        save_frontier_chkpt(model.module, opt.model_dir, i+1, optimizer, precision)
                         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
                 else:
-                    save_frontier_chkpt(model, opt.model_dir, i+1, optimizer)
+                    save_frontier_chkpt(model, opt.model_dir, i+1, optimizer, precision)
 
             # Model checkpoint
             if (i+1) % opt.chkpt_intv == 0:
                 if opt.parallel == "DDP":
                     if dist.get_rank() == 0:
                         model = revert_sync_batchnorm(model)
-                        save_chkpt(model.module, opt.model_dir, i+1, optimizer)
+                        save_chkpt(model.module, opt.model_dir, i+1, optimizer, precision)
                         if opt.export_onnx:
                             export_onnx(opt, i+1)
                         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
                 else:
-                    save_chkpt(model, opt.model_dir, i+1, optimizer)
+                    save_chkpt(model, opt.model_dir, i+1, optimizer, precision)
                     if opt.export_onnx:
                         export_onnx(opt, i+1)
 
@@ -204,15 +188,8 @@ def eval_loop(iter_num, model, data_loader, opt, logger, wandb_logger):
         t0 = time.time()
         for i in range(opt.eval_iter):
             sample = data_loader()
-            if opt.mixed_precision:
-                dtype = torch.bfloat16 if opt.mixed_precision == 'bf16' else torch.float16
-                with torch.cuda.amp.autocast(dtype=dtype):
-                    losses, nmasks, preds = forward(model, sample, opt)
-                losses = {k: v.float() for k, v in losses.items()}
-                nmasks = {k: v.float() for k, v in nmasks.items()}
-                preds  = {k: v.float() for k, v in preds.items()}
-            else:
-                losses, nmasks, preds = forward(model, sample, opt)
+            # Autocast, if any, is applied inside the model wrapper.
+            losses, nmasks, preds = forward(model, sample, opt)
             elapsed = time.time() - t0
 
             # Record keeping
