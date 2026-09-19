@@ -17,6 +17,15 @@ and heads, runs the real model wrapper, losses and optimizer:
   --bench       s/iter (median after warmup) and peak allocated memory for
                 every combination of --widths x --modes x --batch x
                 --channels_last. OOM is recorded, not fatal.
+  --profile     where an iteration's time goes, per --widths x --modes x
+                --segments at batch --batch[0]: network forward, each head's
+                loss, backward, optimizer step; plus the same step with the
+                losses replaced by a trivial one ("net only"), whose gap to
+                the full step is the loss forward+backward.
+
+--segments sets how many Voronoi segments the synthetic label has; the
+mean-shift embedding loss scales with it, so it is the knob that matches the
+synthetic step to real training.
 
 Data loading is not included, so s/iter here is a lower bound on training.
 
@@ -94,7 +103,7 @@ def build(opt, seed=0):
     return model
 
 
-def synthetic_sample(opt, batch, seed, device='cuda'):
+def synthetic_sample(opt, batch, seed, device='cuda', segments=256):
     """Input noise plus Voronoi segments; binary heads are random blobs."""
     g = torch.Generator(device=device).manual_seed(seed)
     [(in_key, in_shape)] = opt.in_spec.items()
@@ -105,7 +114,7 @@ def synthetic_sample(opt, batch, seed, device='cuda'):
                                           for s in out_shape], indexing='ij'), -1).reshape(n, 3)
     segs = []
     for _ in range(batch):
-        seeds = torch.rand((256, 3), generator=g, device=device) * torch.tensor(out_shape, device=device)
+        seeds = torch.rand((segments, 3), generator=g, device=device) * torch.tensor(out_shape, device=device)
         lab = torch.cat([torch.cdist(c, seeds).argmin(1) for c in coords.split(65536)]) + 1
         segs.append(lab.reshape(out_shape).float())
     seg = torch.stack(segs)[:, None]
@@ -235,6 +244,77 @@ def bench_one(base, width, mode, batch, channels_last, warmup, iters):
     return rec
 
 
+def profile_one(base, width, mode, batch, segments, warmup, iters):
+    """Median CUDA time of each phase of a training step, in seconds."""
+    opt = variant(base, width, mode)
+    model = build(opt)
+    optimizer = make_optimizer(opt, model)
+    prec = model.precision
+    sample = synthetic_sample(opt, batch, seed=1, segments=segments)
+    [in_key] = opt.in_spec
+    heads = list(opt.out_spec)
+
+    def run(net_only):
+        for p in model.parameters():
+            p.grad = None
+        ev = {k: torch.cuda.Event(enable_timing=True)
+              for k in ['start', 'fwd', 'loss', 'bwd', 'step'] + heads}
+        ev['start'].record()
+        with prec.autocast():
+            preds = model.model(sample[in_key])
+        preds = {k: v.float() for k, v in preds.items()}
+        ev['fwd'].record()
+        if net_only:
+            total = sum((v * v).mean() for v in preds.values())
+        else:
+            total = 0
+            for k in heads:
+                one = {k: preds[k]}
+                model_out_spec, model.out_spec = model.out_spec, {k: opt.out_spec[k]}
+                losses, _ = model.eval_loss(one, sample)
+                model.out_spec = model_out_spec
+                total = total + opt.loss_weight[k] * losses[k].mean()
+                ev[k].record()
+        ev['loss'].record()
+        if prec.scaler is not None:
+            prec.scaler.scale(total).backward()
+        else:
+            total.backward()
+        ev['bwd'].record()
+        if prec.scaler is not None:
+            prec.scaler.step(optimizer)
+            prec.scaler.update()
+        else:
+            optimizer.step()
+        ev['step'].record()
+        ev['step'].synchronize()
+        t = lambda a, b: ev[a].elapsed_time(ev[b]) / 1000.0
+        out = {'forward': t('start', 'fwd'), 'loss': t('fwd', 'loss'),
+               'backward': t('loss', 'bwd'), 'optimizer': t('bwd', 'step'),
+               'total': t('start', 'step')}
+        if not net_only:
+            prev = 'fwd'
+            for k in heads:
+                out[f'loss/{k}'] = t(prev, k)
+                prev = k
+        return out
+
+    rec = dict(width=width, mode=mode, batch=batch, segments=segments)
+    for name, net_only in (('full', False), ('net_only', True)):
+        for _ in range(warmup):
+            run(net_only)
+        runs = [run(net_only) for _ in range(iters)]
+        rec[name] = {k: statistics.median(r[k] for r in runs) for k in runs[0]}
+    del model, optimizer
+    torch.cuda.empty_cache()
+    f, n = rec['full'], rec['net_only']
+    heads_s = "  ".join(f"{k.split('/')[1]} {v:.3f}" for k, v in f.items() if k.startswith('loss/'))
+    print(f"[profile] w{width} {mode:4} bs{batch} seg{segments}: total {f['total']:.3f} = fwd "
+          f"{f['forward']:.3f} + loss {f['loss']:.3f} ({heads_s}) + bwd {f['backward']:.3f} + opt "
+          f"{f['optimizer']:.3f} | net only {n['total']:.3f}", flush=True)
+    return rec
+
+
 def markdown(res):
     lines = [f"# AMP bench: {res['device']}, torch {res['torch']}, cuDNN {res['cudnn']}", ""]
     if res.get('parity'):
@@ -249,6 +329,19 @@ def markdown(res):
         lines += [f"## Trajectory ({t['steps']} steps, width {t['width']})", "",
                   "| run | mean rel. gap to fp32, last quarter |", "|---|---|"]
         lines += [f"| {k} | {v:.2e} |" for k, v in t['gap_vs_fp32'].items()]
+        lines.append("")
+    if res.get('profile'):
+        heads = [k for k in res['profile'][0]['full'] if k.startswith('loss/')]
+        lines += ["## Profile: seconds per phase (median)", "",
+                  "| width | mode | batch | segments | total | forward | loss | " +
+                  " | ".join(h.split('/')[1] for h in heads) + " | backward | optimizer | net only |",
+                  "|" + "---|" * (10 + len(heads))]
+        for r in res['profile']:
+            f = r['full']
+            lines.append(f"| {r['width']} | {r['mode']} | {r['batch']} | {r['segments']} | {f['total']:.3f} | "
+                         f"{f['forward']:.3f} | {f['loss']:.3f} | " +
+                         " | ".join(f"{f[h]:.3f}" for h in heads) +
+                         f" | {f['backward']:.3f} | {f['optimizer']:.3f} | {r['net_only']['total']:.3f} |")
         lines.append("")
     if res.get('bench'):
         lines += ["## Speed and memory (synthetic data, no loader)", "",
@@ -275,6 +368,8 @@ def main():
     ap.add_argument('--channels_last', nargs='+', default=['off', 'on'], choices=['off', 'on'])
     ap.add_argument('--warmup', type=int, default=10)
     ap.add_argument('--iters', type=int, default=20)
+    ap.add_argument('--profile', action='store_true')
+    ap.add_argument('--segments', type=int, nargs='+', default=[256])
     args = ap.parse_args()
     assert torch.cuda.is_available(), "amp_bench needs a GPU"
 
@@ -288,6 +383,9 @@ def main():
         res['parity'] = [r for w in args.widths for r in parity(base, args.modes, w)]
     if args.trajectory:
         res['trajectory'] = trajectory(base, args.modes, w0, args.trajectory)
+    if args.profile:
+        res['profile'] = [profile_one(base, w, m, args.batch[0], n, args.warmup, args.iters)
+                          for w in args.widths for m in args.modes for n in args.segments]
     if args.bench:
         res['bench'] = [bench_one(base, w, m, b, cl == 'on', args.warmup, args.iters)
                         for w in args.widths for m in args.modes
